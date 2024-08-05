@@ -125,8 +125,8 @@ def arrange_spectra(sn_name:str, data:pd.DataFrame, oid:int,
 
 if __name__ == '__main__':
     master_dataframe = pd.DataFrame()
-    indx_ini = 0
-    indx_fin = 2000
+    indx_ini = 14000
+    indx_fin = 18000
     oid = indx_ini
     for file in all_files[indx_ini:indx_fin]:
         try:
