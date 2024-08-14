@@ -1,0 +1,10 @@
+# Ignore data and bigdata files
+*.pkl
+*.cvs
+
+# Ignore Python's files
+__pycache__/
+
+# Ignore data folder
+/data/ 
+
