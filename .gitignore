@@ -1,10 +1,23 @@
 # Ignore data and bigdata files
 *.pkl
-*.cvs
+*.csv
+
+# Ignore astronomomical tables
+*.tbl
 
 # Ignore Python's files
 __pycache__/
 
 # Ignore data folder
 /data/ 
+
+# Ignore other unuseful folders
+MoriyaWindAcc/
+wiserep_spectra_data/
+TMPhy_VAE/
+
+
+# Ignore zip files
+*.zip
+
 
