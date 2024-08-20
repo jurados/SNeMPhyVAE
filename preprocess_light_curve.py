@@ -58,7 +58,7 @@ def process_light_curve_parsnip(ligth_curve):
     new_light_curve['time_index'] = time_indices
     new_light_curve = new_light_curve[time_mask]
 
-    return new_light_curve
+    return new_light_curve  
 
 def create_grid(lightcurve: pd.DataFrame):
 
