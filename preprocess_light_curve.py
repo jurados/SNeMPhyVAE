@@ -62,15 +62,36 @@ def process_light_curve_parsnip(ligth_curve):
 
 def create_grid(lightcurve: pd.DataFrame):
 
+    #lightcurve = process_light_curve_parsnip(lightcurve)
+    
     # Build a grid for the input
-    grid_flux = np.zeros((1,
-                            300))
-    grid_weights = np.zeros_like(grid_flux)
+    # The first grid is created for saved the data
+    # The second grid is created for save the weights that will be used
+    # on the loss_function
+    grid_flux    = np.zeros((2,300))
+    grid_weights = np.zeros_like(grid_flux) 
+    
+    # This value is normally in other file
+    error_floor = 0.01
+    weights = 1 / (lightcurve['magpsf']**2 + error_floor**2)
+
 
     mask = (lightcurve['time_index'] >= 0) & (lightcurve['time_index'] < 300)
-    lightcurve = lightcurve[mask]
+    lightcurve = lightcurve.loc[mask]
+    magnitudes = lightcurve.magpsf.to_numpy()
+    lightcurve.loc[:, 'flux'] = 10 * (0.4 * (48.6 - magnitudes))    
    
-   # Fill in the input array.
-    grid_flux[0, lightcurve['time_index']] = lightcurve['magpsf']
+    # Fill in the input array.
+    grid_flux[0, :] = np.linspace(0,300,300)
+    grid_flux[1, lightcurve['time_index']] = lightcurve['flux'].to_numpy()
 
-    return grid_flux
+    # Fill the grid weights
+    grid_weights[1, lightcurve['time_index']] = error_floor**2 * weights.to_numpy()
+
+    #grid_flux[1, lightcurve['time_index']] = lightcurve['magpsf']
+
+    #input_data = np.concatenate(
+    #        [i[:, None, None].repeat(self.settings['time_window'], axis=2) for i in extra_input_data] + [grid_flux, grid_weights], axis=1
+    #    )
+
+    return grid_flux, grid_weights
