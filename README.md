@@ -1,8 +1,8 @@
-# Combining Theory and Multimodal Observations to Classify and Characerize Supernovae
+# Combining Theory and Multimodal Observations to Classify and Characterize Supernovae
 Jurado, S.[^1], Förster, F[^1].
 
 [^1]: Departamento de Astronomía, Universidad de Chile. Camino al Observatorio 1515, Santiago, Chile.
-[^1]: sjurado@das.uchile.cl
+[^1]: [sjurado@das.uchile.cl](mailto:sjurado@das.uchile.cl)
 
 ## Abstract
 ---
