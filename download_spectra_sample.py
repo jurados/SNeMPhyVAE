@@ -42,7 +42,7 @@ class SpectraWISREP:
 		# &files_type=none/ascii/fits/all
 		# &personal_api_key=...
 		# &bot_api_key=...
-
+		# s
 
 		# Specify the required parameters here
 		# Possible files type: &files_type=none | ascii | fits | all
