@@ -17,3 +17,5 @@ SNeMPhyVAE/lib64/
 # Results folder
 SNeMPhyVAE/results/
 
+# Keys and credentials
+SNeMPhyVAE/WANDB_API.key
