@@ -1,23 +1,19 @@
-# Ignore data and bigdata files
-*.pkl
-*.csv
-
-# Ignore astronomomical tables
-*.tbl
-
 # Ignore Python's files
 __pycache__/
 
-# Ignore data folder
-/data/ 
+# Datafolder
+SNeMPhyVAE/data/
 
-# Ignore other unuseful folders
-MoriyaWindAcc/
-wiserep_spectra_data/
-TMPhy_VAE/
+# Environment files
+SNeMPhyVAE/bin/
+SNeMPhyVAE/lib/
+SNeMPhyVAE/include/
+SNeMPhyVAE/pyvenv.cfg
+SNeMPhyVAE/lib64/
 
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
 
-# Ignore zip files
-*.zip
-
+# Results folder
+SNeMPhyVAE/results/
 
