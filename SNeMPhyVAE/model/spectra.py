@@ -119,19 +119,22 @@ class Spectra():
 
     def continuum_fitting(self, flux: np.ndarray, wave: np.ndarray, state: dict):
         """
+        
+        Obtain the continuum fitting of a given spectrum using spline interpolation.
+        
         Parameters:
         -----------
         flux : '~np.ndarray'
-            Flujo del espectro (normalizado).
+            specum flux (normalized).
         wave : '~np.ndarray'
-            Longitudes de onda correspondientes.
+            wavelengths.
         state : dict
-            Diccionario con información intermedia obtenido de _grid_flux.
+            Dictionary with intermediate information obtained from _grid_flux.
 
         Returns:
         --------
         spectrum_flux : '~np.ndarray'
-            Espectro con el ajuste del continuo aplicado (flujo dividido por el continuo).
+            Spectrum with the continuum fitting applied (flux divided by the continuum).
         """
 
         if flux.size < 13:
@@ -150,40 +153,35 @@ class Spectra():
         wave_knots = wave_knots[sort_idx]
         flux_knots = flux_knots[sort_idx]
 
-        # Además, eliminar cualquier duplicado (por si acaso)
+        # Although, the knots should be unique and sorted, we ensure it here.
         _, unique_idx = np.unique(wave_knots, return_index=True)
         wave_knots = wave_knots[unique_idx]
         flux_knots = flux_knots[unique_idx]
 
-        #print('wave_knots len', len(wave_knots))
-        #print('flux_knots len', len(flux_knots))
-        #print('Es creciente:', np.all(np.diff(wave_knots) >= 0))
-
         spline = UnivariateSpline(wave_knots, flux_knots, k=3)  # k=3 es spline cúbico, s=0 ajuste exacto
-        # Evaluar el continuo sobre toda la grilla
+        # Evalaute the spline at the knots to check
         continuum = spline(wave)
-        #continuum = spline(wave_knots)
 
-        # Guardar en el estado para su uso posterior
+        # Save the continuum flux in the state dictionary
         state['continuum_flux'][state['mask']] = flux / continuum
 
         return flux / continuum
 
     def apodization(self, flux, state, fraction=0.05):
         """
-        Aplica apodización tipo 'cosine bell' al principio y al final del espectro.
+        Apply apodization to the spectrum using a 'cosine bell' window at the start and end.
 
         Parameters
         ----------
         flux : np.ndarray
-            Vector de flujo a apodizar.
+            Flux vector.
         fraction : float
-            Fracción del espectro donde aplicar la ventana (por defecto 5%).
+            Spectrum fraction to apply the window (default 5%).
 
         Returns
         -------
         flux_apodized : np.ndarray
-            Vector de flujo apodizado.
+            Apodized flux vector.
         """
         if len(flux) == 0: # There are not enough data
             return flux
@@ -200,31 +198,35 @@ class Spectra():
 
     def process_spectrum(self, spectra, slice_spectrum=False):
         """
-        Procesa un conjunto de espectros y agrega columnas con la información procesada.
+        Process a spectra set and add columns with the processed information.
 
         Parameters:
         -----------
         spectra : '~pd.DataFrame'
-            DataFrame que contiene registros de espectros.
+            DataFrame containing spectra records or a single spectrum as a pd.Series.
+        slice_spectrum : bool
+            If True, the final spectrum will be sliced to a target size using smoothing and 
+            interpolation.
 
         Returns:
         --------
         new_spectra : '~pd.DataFrame'
-            DataFrame con los espectros procesados, incluyendo columnas como:
-            'flux', 'wave', 'flux_continuum', 'flux_normalized' y 'final_spectrum'.
+            DataFrame with the processed spectra, including columns like:
+            'flux', 'wave', 'flux_continuum', 'flux_normalized', and 'final_spectrum'.
         """
+
         results = []
 
         if isinstance(spectra, pd.Series):
             spectra = pd.DataFrame([spectra])
 
-        # Iterar sobre cada espectro (cada fila)
+        # Iterarate over each spectrum
         for _, spectrum in spectra.iterrows():
 
             flux, wave, state = self._preprocess_flux(spectrum)
             flux += np.abs(np.min(flux))
 
-            # Índices donde el flujo es no nulo
+            # Index mask for valid flux values
             mask = (flux > 0) & np.isfinite(flux)
             state['mask'] = mask
 

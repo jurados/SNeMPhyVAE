@@ -43,21 +43,28 @@ from TMPhy_VAE.metrics_callback import MetricsCallback
 wandb_key = open('./TMPhy_VAE/WANDB_API.key', 'r').read()
 wandb.login(key=wandb_key)
 
-
 #from metrics_callback import MetricsCallback
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print('Trabajando con: ', device)
 
+# Load and process the light curves
 lightcurves = LightCurves(snii_only=False).obtain_data()
 MLightCurve = LightCurves(instrument='ztf')
 lightcurves = MLightCurve.process_lightcurves(lightcurves)
+print('Light curves', lightcurves.head())
+print('Light curves shape:', lightcurves.shape)
+print('Number of light curves:', len(lightcurves.oid.unique()))
 
+# Load and process the spectra
 spectra = Spectra(snii_only=False).obtain_data()
 spectra = spectra[~spectra.oid.isin(['ZTF23aaoohpy', 'ZTF20aatzhhl', 'ZTF22aazuuin'])]
 MSpectra = Spectra()
 spectra  = MSpectra.process_spectrum(spectra, slice_spectrum=True)
-#
+
+print('Spectra', spectra.head())
+print('Spectra shape:', spectra.shape)
+print('Number of spectra:', len(spectra.oid.unique()))
 common_oids = set(spectra.oid.unique()) & set(lightcurves.oid.unique())
 spectra     = spectra[spectra.oid.isin(common_oids)]
 lightcurves = lightcurves[lightcurves.oid.isin(common_oids)]
@@ -76,7 +83,7 @@ except:
 # Primero, separar TEST (20%) y el resto (80% para train+val)
 test_oids = []
 if 'ZTF22aaeviey' in oids:
-    test_oids.append('ZTF22aaeviey')
+    test_oids.append('ZTF22aaevie   y')
     oids.remove('ZTF22aaeviey')  # Lo quitamos de la lista general para el split
 
 # 2. Dividir el resto de OIDs (80% train+val, 20% test)
@@ -1724,7 +1731,7 @@ if __name__ == "__main__":
 
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 250
+    epochs = 1
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
