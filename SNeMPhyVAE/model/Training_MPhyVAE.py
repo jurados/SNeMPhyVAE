@@ -52,9 +52,10 @@ print('Trabajando con: ', device)
 lightcurves = LightCurves(snii_only=False).obtain_data()
 MLightCurve = LightCurves(instrument='ztf')
 lightcurves = MLightCurve.process_lightcurves(lightcurves)
-print('Light curves', lightcurves.head())
-print('Light curves shape:', lightcurves.shape)
-print('Number of light curves:', len(lightcurves.oid.unique()))
+print('Lightcurves', lightcurves.head())
+print('Lightcurves columns:', lightcurves.columns)
+print('Lightcurves shape:', lightcurves.shape)
+print('Number of lightcurves:', len(lightcurves.oid.unique()))
 
 # Load and process the spectra
 spectra = Spectra(snii_only=False).obtain_data()
@@ -63,6 +64,7 @@ MSpectra = Spectra()
 spectra  = MSpectra.process_spectrum(spectra, slice_spectrum=True)
 
 print('Spectra', spectra.head())
+print('Spectra columns:', spectra.columns)
 print('Spectra shape:', spectra.shape)
 print('Number of spectra:', len(spectra.oid.unique()))
 common_oids = set(spectra.oid.unique()) & set(lightcurves.oid.unique())
@@ -75,33 +77,25 @@ lightcurves['redshift'] = lightcurves['redshift'].replace('nan', 0.1)
 
 spectra = MSpectra.spectra_reference_time(spectra, lightcurves)
 
+# Find common OIDs
 try:
     oids = list(set(spectra.oid.unique()) & set(lightcurves.oid.unique()))#) & set(rainbow_spectra.oid.unique()))# & set(photo_vel.oid.unique()))
 except:
     pass
-#print(len(oids))
-# Primero, separar TEST (20%) y el resto (80% para train+val)
+
 test_oids = []
 if 'ZTF22aaeviey' in oids:
-    test_oids.append('ZTF22aaevie   y')
-    oids.remove('ZTF22aaeviey')  # Lo quitamos de la lista general para el split
+    test_oids.append('ZTF22aaeviey')
+    oids.remove('ZTF22aaeviey')  # Remove it from the main list
 
-# 2. Dividir el resto de OIDs (80% train+val, 20% test)
+# 2. Split the 80% remaining into TRAIN (80%) and TEST (20%)
 remaining_train_oids, remaining_test_oids = train_test_split(oids, test_size=0.2)
 
-# 3. Combinar los test_oids (OID especial + los del split)
+# 3. Ensure the special OID is in the test set
 test_oids.extend(remaining_test_oids)
 train_oids = remaining_train_oids
 
-
-# Luego, separar TRAIN (64%) y VALIDACIÓN (16%) del conjunto train+val
-#train_oids, val_oids = train_test_split(train_val_oids, test_size=0.1, random_state=42)
-
-# Verificar tamaños
-print(f"Total OIDs: {len(oids)}")
-#print(f"Train: {len(train_oids)}, Val: {len(val_oids)}, Test: {len(test_oids)}")
-
-# Filtrar los datasets
+# Divide the data into training and validation sets per modality
 train_data_lightcurves = lightcurves[lightcurves.oid.isin(train_oids)]
 train_data_spectra     = spectra[spectra.oid.isin(train_oids)]
 #train_data_rainbow     = rainbow_spectra[rainbow_spectra.oid.isin(train_oids)]
@@ -113,6 +107,7 @@ train_data_spectra     = spectra[spectra.oid.isin(train_oids)]
 
 test_data_lightcurves = lightcurves[lightcurves.oid.isin(test_oids)]
 test_data_spectra     = spectra[spectra.oid.isin(test_oids)]
+
 
 #train_data_lightcurves = pd.read_pickle('./data/train_data_lightcurves.pkl')
 #train_data_spectra     = pd.read_pickle('./data/train_data_spectra.pkl')
@@ -151,7 +146,7 @@ class CompleteDataset:
         #self.oids = list(set(lightcurves.oid) & set(spectra.oid))# & set(rainbow.oid) & set(photovels.oid))
         oids = list(set(lightcurves['oid']) & set(spectra['oid'])) #& set(rainbow['oid']) & set(photovels['oid']))
         if 'ZTF22aaeviey' in oids:
-            # Asegurarse de que 'ZTF22aaeviey' esté al principio
+            # Ensure 'ZTF22aaeviey' is at the beginning
             oids.remove('ZTF22aaeviey')
             oids.insert(0, 'ZTF22aaeviey')
         self.oids = oids
@@ -1070,11 +1065,7 @@ class MPhy_VAE(L.LightningModule):
             Results dictionary. If to_numpy is True, all of the elements will be
             numpy arrays. Otherwise, they will be Pytorch tensors.
         """
-        #print('Entre al get data')
         data = self._get_data(light_curves)#, rainbow_spectra)
-        #print('Sali del Get_Data')
-        #print(light_curves)
-        #print(x!='0')
 
         # Metadata
         metadata = {
@@ -1744,7 +1735,8 @@ if __name__ == "__main__":
         name = (
             f"MPhy_VAE_{today}_nbins={initial_settings['spectrum_bins']}_"
             f"LatentSize={initial_settings['latent_size']}_"
-            f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
+            #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
+            f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
         ),
         #name=f"MPhy_VAE_Rainbow_bins_{initial_settings['spectrum_bins']}",
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",

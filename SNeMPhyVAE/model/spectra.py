@@ -291,16 +291,22 @@ class Spectra():
 
     def slice_spectrum(self, spectrum, method='moving_average', window_size=9, polyorder=2, sigma=1.0, target_size=initial_settings['spectrum_bins']):
         """
-        Suaviza un espectro y reduce su tamaño mediante interpolación o promediado.
+        Smooth and reduce the size of a spectrum using interpolation or averaging.
 
         Parameters:
         ------------
-        - spectrum (np.ndarray): Espectro de entrada (1D).
-            method (str): Método de suavizado ('gaussian', 'moving_average').
-            window_size (int): Tamaño de la ventana de suavizado (debe ser impar).
-            sigma (float): Desviación estándar para el filtro gaussiano.
-            target_size (int): Número de puntos deseado en el espectro reducido (ej. 300).
-
+        - spectrum: '~np.ndarray': 
+            Input spectrum.
+        - method: str 
+            Smoothing method ('savgol', 'gaussian', 'moving_average').
+        - window_size: int 
+            Size of the smoothing window (must be odd).
+        - polyorder: int 
+            Polynomial order for Savitzky-Golay filter (if used).
+        - sigma: float 
+            Standard deviation for Gaussian filter (if used).
+        - target_size: int or None
+            Desired output size. If None, no size reduction is applied.
         Returns:
         --------
             np.ndarray: Espectro suavizado y reducido.
@@ -329,7 +335,7 @@ class Spectra():
             smoothed = np.convolve(spectrum, kernel, mode='same')
 
         else:
-            raise ValueError("Método no reconocido. Usa 'gaussian' o 'moving_average'.")
+            raise ValueError("Method dont available. Use 'gaussian' or 'moving_average'.")
 
         # Size reduction if target_size is specified
         if target_size is not None and target_size < len(smoothed):
