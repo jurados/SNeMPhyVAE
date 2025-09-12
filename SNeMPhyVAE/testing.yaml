@@ -1,0 +1,9 @@
+# These are the experiments to be run during testing
+# Date: 2025 - 09 - 25
+
+# 1) Complex model aumentations: Increase the size of latent space
+latent_dim:
+  - 3
+  - 16
+  - 32
+  - 64
