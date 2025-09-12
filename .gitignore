@@ -9,7 +9,7 @@ SNeMPhyVAE/bin/
 SNeMPhyVAE/lib/
 SNeMPhyVAE/include/
 SNeMPhyVAE/pyvenv.cfg
-#SNeMPhyVAE/lib64
+SNeMPhyVAE/lib64
 SNeMPhyVAE/share/
 
 # Jupyter Notebook checkpoints
