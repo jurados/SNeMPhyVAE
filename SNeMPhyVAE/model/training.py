@@ -40,7 +40,7 @@ from metrics_callback import MetricsCallback
 
 # =============================================================
 
-wandb_key = open('../WANDB_API.key', 'r').read()
+wandb_key = open('./WANDB_API.key', 'r').read()
 wandb.login(key=wandb_key)
 
 #from metrics_callback import MetricsCallback
@@ -1710,16 +1710,9 @@ class MPhy_VAE(L.LightningModule):
 
 if __name__ == "__main__":
     
-    #parser = argparse.ArgumentParser(description="Change the initial conditions of the model")
-    #parser.add_argument("-sn", "--spectra_bins", default=initial_settings['spectrum_bins'], type=int, required=False, help="Number of bins for the spectra")
-    #parser.add_argument("-sp", "--spectra_penalty", default=initial_settings['penalty_spectra'], type=float, required=False, help="Penalty for the spectra")
-    #parser.add_argument("-ls", "--latent_space_dim", default=initial_settings['latent_size'], type=int, required=False, help="Latent space dimension")
-    #args = parser.parse_args()
-
-    #initial_settings['spectrum_bins'] = args.spectra_nbins
-    #initial_settings['penalty_spectra'] = args.spectra_penalty
-    #initial_settings['latent_size'] = args.latent_space_dim
-
+    from update import update_settings
+    
+    update_settings(ls_req=True)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
     epochs = 1
@@ -1731,18 +1724,19 @@ if __name__ == "__main__":
     wandb_logger = WandbLogger(
         entity='fforster-uchile',
         project='SupernovaeMultimodalVAE',
+        tags = ["Train"],
         job_type='train',
-        name = (
-            f"MPhy_VAE_{today}_nbins={initial_settings['spectrum_bins']}_"
-            f"LatentSize={initial_settings['latent_size']}_"
-            #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
-            f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
-        ),
+        #name = (
+        #    f"MPhy_VAE_{today}_nbins={initial_settings['spectrum_bins']}_"
+        #    f"LatentSize={initial_settings['latent_size']}_"
+        #    #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
+        #    f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
+        #),
         #name=f"MPhy_VAE_Rainbow_bins_{initial_settings['spectrum_bins']}",
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
         #name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
-        #name=f"BORRAR_TEST_{today}",
+        name=f"BORRAR_TEST_{today}",
         #name=f"TEST_20250507_15:40",
         config={
             'epochs': epochs,
