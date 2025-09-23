@@ -5,7 +5,7 @@ import pandas as pd
 import scipy
 
 # Import custom settings
-from TMPhy_VAE.settings import initial_settings, band_info
+from settings import initial_settings, band_info
 # =============================================
 
 class LightCurves():

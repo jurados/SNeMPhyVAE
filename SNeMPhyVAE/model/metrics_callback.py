@@ -14,7 +14,7 @@ from lightning.pytorch.callbacks import Timer, Callback
 import wandb
 
 # Import custom settings
-from TMPhy_VAE.settings import initial_settings
+from settings import initial_settings
 
 # =============================================
 

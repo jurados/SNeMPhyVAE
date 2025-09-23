@@ -5,7 +5,7 @@ import pandas as pd
 from scipy.interpolate import UnivariateSpline
 
 # Import custom settings
-from TMPhy_VAE.settings import initial_settings
+from settings import initial_settings
 
 # =============================================
 

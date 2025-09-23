@@ -33,14 +33,14 @@ from lightning.pytorch.loggers import WandbLogger
 import wandb
 # ================== IMPORT CUSTOM LIBRARIES ==================
 
-from TMPhy_VAE.settings import initial_settings, band_info
-from TMPhy_VAE.lightcurves import LightCurves
-from TMPhy_VAE.spectra import Spectra
-from TMPhy_VAE.metrics_callback import MetricsCallback
+from settings import initial_settings, band_info
+from lightcurves import LightCurves
+from spectra import Spectra
+from metrics_callback import MetricsCallback
 
 # =============================================================
 
-wandb_key = open('./TMPhy_VAE/WANDB_API.key', 'r').read()
+wandb_key = open('../WANDB_API.key', 'r').read()
 wandb.login(key=wandb_key)
 
 #from metrics_callback import MetricsCallback
