@@ -4,6 +4,9 @@ __pycache__/
 # Datafolder
 SNeMPhyVAE/data/
 
+# WandB files
+SNeMPhyVAE/wandb/
+
 # Environment files
 SNeMPhyVAE/bin/
 SNeMPhyVAE/lib/

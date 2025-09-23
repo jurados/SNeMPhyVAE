@@ -913,6 +913,9 @@ class MPhy_VAE(L.LightningModule):
         """Setup the interpolation for the band weights used for photometry"""
         # This create the wavelength grid
         # Build the model in log wavelength
+        
+        print(initial_settings["min_wave"])
+        
         model_log_wave = np.linspace(np.log10(initial_settings['min_wave']),
                                      np.log10(initial_settings['max_wave']),
                                      initial_settings['spectrum_bins'])
@@ -1715,7 +1718,7 @@ if __name__ == "__main__":
     update_settings(ls_req=True)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 1
+    epochs = 2
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,

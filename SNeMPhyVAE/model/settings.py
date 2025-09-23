@@ -17,8 +17,8 @@ initial_settings = {
     'zeropoint': 25.0,
 
     # Spectrum settings
-    'min_wave': 3000,        # Angstrom
-    'max_wave': 10000,       # Angstrom
+    'min_wave': 3000.,        # Angstrom
+    'max_wave': 10000.,       # Angstrom
     'spectrum_bins': 500,    # This value is to keep the velocity equal to 200 Km/s
     'band_oversampling': 51, # This must be odd.
     'max_redshift': 4.,
