@@ -1726,7 +1726,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 2
+    epochs = 200
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
@@ -1737,17 +1737,16 @@ if __name__ == "__main__":
         project='SupernovaeMultimodalVAE',
         tags = ["Train"],
         job_type='train',
-        #name = (
-        #    f"MPhy_VAE_{today}_nbins={initial_settings['spectrum_bins']}_"
-        #    f"LatentSize={initial_settings['latent_size']}_"
-        #    #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
-        #    f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
-        #),
-        #name=f"MPhy_VAE_Rainbow_bins_{initial_settings['spectrum_bins']}",
+        name = (
+            f"{today}_MPhyVAE_nbins={initial_settings['spectrum_bins']}_"
+            f"LatentSize={initial_settings['latent_size']}_"
+            #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
+            f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
+        ),
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
         #name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
-        name=f"BORRAR_TEST_{today}",
+        #name=f"BORRAR_TEST_{today}",
         #name=f"TEST_20250507_15:40",
         config={
             'epochs': epochs,
