@@ -6,6 +6,7 @@ SNeMPhyVAE/data/
 
 # WandB files
 SNeMPhyVAE/wandb/
+SNeMPhyVAE/logs/
 
 # Environment files
 SNeMPhyVAE/bin/
