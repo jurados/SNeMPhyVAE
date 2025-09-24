@@ -11,9 +11,10 @@ from settings import initial_settings
 
 class Spectra():
 
-    def __init__(self, snii_only=False):
+    def __init__(self, settings=initial_settings, snii_only=False):
 
         self.snii_only = snii_only
+        self.initial_settings = settings
 
     def _load_data(self):
 
@@ -66,7 +67,7 @@ class Spectra():
         wave_range = np.logspace(
             np.log10(spectrum.lambda_grid_min),
             np.log10(spectrum.lambda_grid_max),
-            1838#,initial_settings['spectrum_bins']
+            1838#,self.initial_settings['spectrum_bins']
         )
         # 1. De-redshifting (To rest-frame)
         redshift = np.nan_to_num(float(spectrum['redshift']))
@@ -256,7 +257,7 @@ class Spectra():
             state['final_spectrum'][state['mask']]  = spec_flux
 
             #print(type(spec_flux))
-            #final_spectrum[idx]  = self.slice_spectrum(spec_flux, target_size=initial_settings['spectrum_bins'])
+            #final_spectrum[idx]  = self.slice_spectrum(spec_flux, target_size=self.initial_settings['spectrum_bins'])
 
             # Crear un diccionario con los resultados; se usa la grilla completa
             results.append({
@@ -286,10 +287,10 @@ class Spectra():
 
         # Realizar un merge en la columna 'oid'
         spectra = spectra.merge(reference_times, on='oid', how='left')
-        spectra['time_index'] = np.round((spectra['reference_time'] - spectra['mjd']) * initial_settings['sideral_scale']).astype(int) + initial_settings['time_window'] // 2
+        spectra['time_index'] = np.round((spectra['reference_time'] - spectra['mjd']) * self.initial_settings['sideral_scale']).astype(int) + self.initial_settings['time_window'] // 2
         return spectra
 
-    def slice_spectrum(self, spectrum, method='moving_average', window_size=9, polyorder=2, sigma=1.0, target_size=initial_settings['spectrum_bins']):
+    def slice_spectrum(self, spectrum, method='moving_average', window_size=9, polyorder=2, sigma=1.0, target_size=None):
         """
         Smooth and reduce the size of a spectrum using interpolation or averaging.
 
@@ -313,6 +314,8 @@ class Spectra():
         """
         from scipy.ndimage import gaussian_filter1d
         from scipy.signal import savgol_filter
+
+        if target_size is None: target_size = self.initial_settings['spectrum_bins']
 
         #spectrum = np.asarray(spectrum, dtype=np.float32)
         if len(spectrum) == 0:

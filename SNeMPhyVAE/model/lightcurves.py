@@ -10,11 +10,12 @@ from settings import initial_settings, band_info
 
 class LightCurves():
 
-    def __init__(self, instrument:str = None, snii_only:bool =False):
+    def __init__(self, settings=initial_settings, instrument:str = None, snii_only:bool =False):
 
         self.lightcurves = None
         self.instrument  = instrument
         self.snii_only   = snii_only
+        self.initial_settings = settings
 
     def _load_data(self):
         """
@@ -109,7 +110,7 @@ class LightCurves():
     def _determine_time_grid(self, lightcurve: pd.DataFrame):
 
         time = lightcurve['mjd'].to_numpy(dtype=np.float32)
-        sidereal_time = time * initial_settings['sideral_scale']
+        sidereal_time = time * self.initial_settings['sideral_scale']
 
         # Initial guess of the phase. Round everything to 0.1 days, and find the decimal
         # that has the largest count.
@@ -142,7 +143,7 @@ class LightCurves():
 
         # Convert back to a reference time in the original units. This reference time
         # corresponds to the reference of the grid in sidereal time.
-        reference_time = ((max_time + sidereal_offset) / initial_settings['sideral_scale'])
+        reference_time = ((max_time + sidereal_offset) / self.initial_settings['sideral_scale'])
 
         return reference_time
 
@@ -161,7 +162,7 @@ class LightCurves():
         float
             Time on the internal grid
         """
-        return (time - reference_time) * initial_settings['sideral_scale']
+        return (time - reference_time) * self.initial_settings['sideral_scale']
 
     def grid_to_time(self, grid_time: np.ndarray, reference_time: float):
         """Convert a time on the internal grid to a time in the original units
@@ -178,7 +179,7 @@ class LightCurves():
         float
             Time in original units
         """
-        return grid_time / initial_settings['sideral_scale'] + reference_time
+        return grid_time / self.initial_settings['sideral_scale'] + reference_time
 
     def _get_reference_time(self, lightcurve):
 
@@ -220,15 +221,15 @@ class LightCurves():
         new_lightcurve = lightcurve.copy()
 
         # Map each band to its corresponding index.
-        #band_map = {j: i for i, j in enumerate(initial_settings['bands'])}
+        #band_map = {j: i for i, j in enumerate(self.initial_settings['bands'])}
         #new_lightcurve['band_index'] = [band_map.get(i, -1) for i in new_lightcurve['fid']]
 
         #
         grid_times = self.time_to_grid(new_lightcurve['mjd'], reference_time).to_numpy(dtype=np.float32)
-        time_indices = np.round(grid_times).astype(int) + initial_settings['time_window'] // 2 # 300 days
+        time_indices = np.round(grid_times).astype(int) + self.initial_settings['time_window'] // 2 # 300 days
         time_mask = (
-            (time_indices >= -initial_settings['time_pad'])
-            & (time_indices < initial_settings['time_window'] + initial_settings['time_pad'])
+            (time_indices >= -self.initial_settings['time_pad'])
+            & (time_indices < self.initial_settings['time_window'] + self.initial_settings['time_pad'])
         )
         new_lightcurve['grid_time']      = grid_times
         new_lightcurve['time_index']     = time_indices
@@ -283,9 +284,9 @@ class LightCurves():
         if getattr(self, 'instrument', None) == 'ztf':
             bands_fid = lightcurves.fid.unique()
             bands = [key_band for key_band, value in band_info.items() if value[-1] in bands_fid]
-            initial_settings.update({'bands': bands})
+            self.initial_settings.update({'bands': bands})
         else:
-            initial_settings.update({'bands': {'bands': ['ztfg', 'ztfr']}})
+            self.initial_settings.update({'bands': {'bands': ['ztfg', 'ztfr']}})
 
     def mag2flux(self,lightcurves):
         """Convert the magnitud to flux using a system by default use AB_system
