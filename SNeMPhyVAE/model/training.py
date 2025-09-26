@@ -1550,82 +1550,135 @@ class MPhy_VAE(L.LightningModule):
         """
         from torchcubicspline import natural_cubic_spline_coeffs, NaturalCubicSpline
         device = model_spectra.device
-        batch_size, n_wave, n_time = model_spectra.shape
-
         wave = torch.FloatTensor(wave).to(device)
-        # --- Paso 1: Crear máscara de datos válidos ---
-        mask = model_spectra > 0 # Printo de mascara para verificar
-        if not mask.any():
-            return model_spectra
-
-        # Determinar longitudes de onda con al menos un valor > 0
-        valid_wave_mask = mask.any(dim=0).any(dim=1)  # [n_wave]
-        valid_wave_indices = torch.where(valid_wave_mask)[0]
-
-        if len(valid_wave_indices) < n_points:
-            raise ValueError(f"Solo {len(valid_wave_indices)} longitudes de onda tienen flujo > 0 (se requieren {n_points})")
-
-        if not is_smoothed:
-
-            # Seleccionar puntos de control equiespaciados dentro del rango válido
-            sp_idx = torch.linspace(0, len(valid_wave_indices) - 1, n_points).long()
-            wave_npoints = wave[valid_wave_indices][sp_idx]  # [n_points]
-            spectra_npoints = model_spectra[:, valid_wave_indices][:, sp_idx, :]  # [B, n_points, T]
-
-            # --- Paso 2: Ajustar spline cúbico natural ---
-            #coeffs = natural_cubic_spline_coeffs(wave_npoints.to(device), spectra_npoints)
-            coeffs = natural_cubic_spline_coeffs(wave_npoints, spectra_npoints)
-            spline = NaturalCubicSpline(coeffs)
-
-            wave_valid = wave[valid_wave_indices].to(device)
-            spline_values_valid = spline.evaluate(wave_valid)
-            spline_values = torch.zeros_like(model_spectra)
-            spline_values[:, valid_wave_indices, :] = spline_values_valid
-
-        #spline_values = spline.evaluate(wave.to(device))  # [B, n_wave, T]
-
-        else:
-            spline_values = self._smooth_spectra(model_spectra, method='moving_average', window_size=200, kernel_size=None, n_points=None)
-
-        # --- Paso 3: División por el continuo ---
-        continuum_divided = torch.zeros_like(model_spectra)
-        continuum_divided[mask] = model_spectra[mask] / spline_values[mask]
-        # Restarle -1 
         
-        continuum_divided = continuum_divided - 1.0
+        transpose_model_spectra = model_spectra.permute(0, 2, 1)  # [B, T, n_wave]
+        final_continuum = torch.zeros_like(transpose_model_spectra)
+        final_spline = torch.zeros_like(transpose_model_spectra)
+        final_apod = torch.zeros_like(transpose_model_spectra)
+        final_spectra = torch.zeros_like(transpose_model_spectra)
+        
+        for batch_idx in range(transpose_model_spectra.shape[0]):
+            for time_idx in range(transpose_model_spectra.shape[1]):
+                
+                spectrum = transpose_model_spectra[batch_idx, time_idx, :]
+                mask = spectrum >= 0
+                idx_original = torch.where(mask)[0]
+                spectrum_positive = spectrum[mask]
+                
+                sp_idx = torch.linspace(0, len(idx_original)-1, steps=n_points).long()
+                idx_wave = idx_original[sp_idx]
+                
+                wave_npoints = wave[idx_wave]
+                #n_wave = wave_npoints.shape[0]
+                spectrum_npoints = spectrum_positive[sp_idx]
+                
+                coeffs = natural_cubic_spline_coeffs(wave_npoints, spectrum_npoints.unsqueeze(-1))
+                spline = NaturalCubicSpline(coeffs)
+                
+                wave_positive = wave[idx_original]
+                #spline_values = spline.evaluate(wave_npoints) 
+                spline_values = spline.evaluate(wave_positive).squeeze(-1) 
+                #spline_tensor = torch.zeros_like(spectrum_positive)
+                #spline_tensor[idx_wave] = spline_values.squeeze(-1)
+                
+                continuum_divided = torch.zeros_like(spectrum_positive)
+                #continuum_divided[mask] = spectrum_positive[mask] / spline_tensor[mask]
+                continuum_divided = spectrum_positive / spline_values
+                continuum_divided = continuum_divided - 1.0
+                
+                # --- Paso 4: Apodización ---
+                n_positives = len(spectrum_positive)
+                n_apod = max(1, int(n_positives * apod_fraction))
+                apod_window = torch.ones(n_positives, device=device)
+                
+                x = torch.linspace(0, np.pi / 2, n_apod, device=device)
+                apod_window[:n_apod] = torch.sin(x)**2
+                apod_window[-n_apod:] = torch.flip(torch.sin(x), dims=[0])**2
 
-        # --- Paso 4: Apodización ---
-        n_apod = max(1, int(n_wave * apod_fraction))
-        apod_window = torch.ones(n_wave, device=device)
+                apodized_spectra = continuum_divided * apod_window  # [B, n_wave, T]
+                apodized_spectra = torch.nan_to_num(apodized_spectra, nan=0.0, posinf=0.0, neginf=0.0)
 
-        x = torch.linspace(0, np.pi / 2, n_apod, device=device)
-        apod_window[:n_apod] = torch.sin(x)**2
-        apod_window[-n_apod:] = torch.flip(torch.sin(x), dims=[0])**2
-
-        apodized_spectra = continuum_divided * apod_window[None, :, None]  # [B, n_wave, T]
-        apodized_spectra = torch.nan_to_num(apodized_spectra, nan=0.0, posinf=0.0, neginf=0.0)
-
-        # Eliminar la renormalizacion del último paso
+                # Full espectrum
+                continuum_divided_full = torch.zeros_like(spectrum)
+                apodized_full = torch.zeros_like(spectrum)
+                spline_tensor_full = torch.zeros_like(spectrum)
+                continuum_divided_full[idx_original] = continuum_divided
+                apodized_full[idx_original] = apodized_spectra
+                spline_tensor_full[idx_original] = spline.evaluate(wave[idx_original]).squeeze(-1)
 
 
-        # --- Paso 5: Normalización final (opcional, comentado) ---
-        max_spectrum = torch.max(apodized_spectra, dim=1, keepdim=True)[0]
-        #max_spectrum = torch.quantile(apodized_spectra, 0.95, dim=1, keepdim=True)[0]
-        final_spectra = torch.zeros_like(model_spectra)
-        #final_spectra[mask] = (apodized_spectra / torch.clamp(max_spectrum, min=1e-8))[mask]
-        final_spectra[mask] = apodized_spectra[mask]
-        final_spectra = torch.nan_to_num(final_spectra, nan=0.0, posinf=0.0, neginf=0.0)
+                final_continuum[batch_idx, time_idx, :] = continuum_divided_full
+                final_spline[batch_idx, time_idx, :] = spline_tensor_full
+                final_apod[batch_idx, time_idx, :] = apodized_full
+                final_spectra[batch_idx, time_idx, :] = apodized_full
 
+        final_continuum = final_continuum.permute(0, 2, 1)  # [B, n_wave, T]
+        final_spline = final_spline.permute(0, 2, 1)
+        final_apod = final_apod.permute(0, 2, 1)
+        final_spectra = final_spectra.permute(0, 2, 1)  # [B, n_wave, T]
+        
         if return_continuum:
-            #Esto porque Spline values no esta normalizado
-            max_continuum = torch.max(spline_values, dim=1, keepdim=True)[0]
-            continuum_norm = torch.zeros_like(spline_values)
-            continuum_norm[mask] = (spline_values / torch.clamp(max_continuum, min=1e-8))[mask]
-            continuum_norm = torch.nan_to_num(continuum_norm, nan=0.0, posinf=0.0, neginf=0.0)
-            #return final_spectra, continuum_norm, apodized_spectra, spline_values
-            return final_spectra, continuum_divided, apodized_spectra, spline_values, model_spectra
+            return final_spectra, final_continuum, final_apod, final_spline, model_spectra
         else:
             return final_spectra
+        
+        #if not is_smoothed:
+#
+        #    # Seleccionar puntos de control equiespaciados dentro del rango válido
+        #    sp_idx = torch.linspace(0, len(valid_wave_indices) - 1, n_points).long()
+        #    wave_npoints = wave[valid_wave_indices][sp_idx]  # [n_points]
+        #    spectra_npoints = model_spectra[:, valid_wave_indices][:, sp_idx, :]  # [B, n_points, T]
+#
+        #    # --- Paso 2: Ajustar spline cúbico natural ---
+        #    #coeffs = natural_cubic_spline_coeffs(wave_npoints.to(device), spectra_npoints)
+        #    coeffs = natural_cubic_spline_coeffs(wave_npoints, spectra_npoints)
+        #    spline = NaturalCubicSpline(coeffs)
+#
+        #    wave_valid = wave[valid_wave_indices].to(device)
+        #    spline_values_valid = spline.evaluate(wave_valid)
+        #    spline_values = torch.zeros_like(model_spectra)
+        #    spline_values[:, valid_wave_indices, :] = spline_values_valid
+#
+        ##spline_values = spline.evaluate(wave.to(device))  # [B, n_wave, T]
+#
+        #else:
+        #    spline_values = self._smooth_spectra(model_spectra, method='moving_average', window_size=200, kernel_size=None, n_points=None)
+#
+        ## --- Paso 3: División por el continuo ---
+        #continuum_divided = torch.zeros_like(model_spectra)
+        #continuum_divided[mask] = model_spectra[mask] / spline_values[mask]
+        ## Restarle -1 
+        #
+        #continuum_divided = continuum_divided - 1.0
+#
+        #n_apod = max(1, int(n_wave * apod_fraction))
+        #apod_window = torch.ones(n_wave, device=device)
+#
+        #x = torch.linspace(0, np.pi / 2, n_apod, device=device)
+        #
+#
+        ## Eliminar la renormalizacion del último paso
+#
+#
+        ## --- Paso 5: Normalización final (opcional, comentado) ---
+        #max_spectrum = torch.max(apodized_spectra, dim=1, keepdim=True)[0]
+        ##max_spectrum = torch.quantile(apodized_spectra, 0.95, dim=1, keepdim=True)[0]
+        #final_spectra = torch.zeros_like(model_spectra)
+        ##final_spectra[mask] = (apodized_spectra / torch.clamp(max_spectrum, min=1e-8))[mask]
+        #final_spectra[mask] = apodized_spectra[mask]
+        #final_spectra = torch.nan_to_num(final_spectra, nan=0.0, posinf=0.0, neginf=0.0)
+#
+        #if return_continuum:
+        #    #Esto porque Spline values no esta normalizado
+        #    max_continuum = torch.max(spline_values, dim=1, keepdim=True)[0]
+        #    continuum_norm = torch.zeros_like(spline_values)
+        #    continuum_norm[mask] = (spline_values / torch.clamp(max_continuum, min=1e-8))[mask]
+        #    continuum_norm = torch.nan_to_num(continuum_norm, nan=0.0, posinf=0.0, neginf=0.0)
+        #    #return final_spectra, continuum_norm, apodized_spectra, spline_values
+        #    return final_spectra, continuum_divided, apodized_spectra, spline_values, model_spectra
+        #else:
+        #    return final_spectra
 
 if __name__ == "__main__":
     
@@ -1726,7 +1779,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 200
+    epochs = 1
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
@@ -1737,17 +1790,16 @@ if __name__ == "__main__":
         project='SupernovaeMultimodalVAE',
         tags = ["Train"],
         job_type='train',
-        name = (
-            f"{today}_MPhyVAE_nbins={initial_settings['spectrum_bins']}_"
-            f"LatentSize={initial_settings['latent_size']}_"
-            #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
-            f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
-        ),
+        #name = (
+        #    f"{today}_MPhyVAE_nbins={initial_settings['spectrum_bins']}_"
+        #    f"LatentSize={initial_settings['latent_size']}_"
+        #    #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
+        #    f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
+        #),
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
         #name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
-        #name=f"BORRAR_TEST_{today}",
-        #name=f"TEST_20250507_15:40",
+        name=f"BORRAR_TEST_{today}",
         config={
             'epochs': epochs,
             'batch_size': initial_settings['batch_size'],
@@ -1781,9 +1833,9 @@ if __name__ == "__main__":
     #val_loss   = model.val_loss_epoch
     #results    = model.latest_results
 
-    #print('='*30)
-    #print('END TRAINING')
-    #print('='*30)
+    print('='*20)
+    print('END TRAINING')
+    print('='*20)
     #print(f"Tiempo total de entrenamiento: {timer.time_elapsed('train'):.2f} segundos")
 
     wandb.finish()
