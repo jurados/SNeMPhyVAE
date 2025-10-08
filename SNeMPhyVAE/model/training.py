@@ -1571,7 +1571,7 @@ class MPhy_VAE(L.LightningModule):
                 
                 wave_npoints = wave[idx_wave]
                 #n_wave = wave_npoints.shape[0]
-                spectrum_npoints = spectrum_positive[sp_idx]
+                spectrum_npoints = spectrum_positive[idx_wave]
                 
                 coeffs = natural_cubic_spline_coeffs(wave_npoints, spectrum_npoints.unsqueeze(-1))
                 spline = NaturalCubicSpline(coeffs)
