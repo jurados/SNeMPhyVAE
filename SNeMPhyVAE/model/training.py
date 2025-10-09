@@ -1554,69 +1554,65 @@ class MPhy_VAE(L.LightningModule):
         
         transpose_model_spectra = model_spectra.permute(0, 2, 1)  # [B, T, n_wave]
         final_continuum = torch.zeros_like(transpose_model_spectra)
-        final_spline = torch.zeros_like(transpose_model_spectra)
-        final_apod = torch.zeros_like(transpose_model_spectra)
-        final_spectra = torch.zeros_like(transpose_model_spectra)
+        final_spline    = torch.zeros_like(transpose_model_spectra)
+        final_apod      = torch.zeros_like(transpose_model_spectra)
+        final_spectra   = torch.zeros_like(transpose_model_spectra)
         
         for batch_idx in range(transpose_model_spectra.shape[0]):
             for time_idx in range(transpose_model_spectra.shape[1]):
                 
                 spectrum = transpose_model_spectra[batch_idx, time_idx, :]
+                
+                continuum_divided_full = torch.zeros_like(spectrum)
+                apodized_full          = torch.zeros_like(spectrum)
+                spline_tensor_full     = torch.zeros_like(spectrum)
+                
                 mask = spectrum >= 0
                 idx_original = torch.where(mask)[0]
                 spectrum_positive = spectrum[mask]
+                wave_positive = wave[idx_original]
                 
                 sp_idx = torch.linspace(0, len(idx_original)-1, steps=n_points).long()
                 idx_wave = idx_original[sp_idx]
                 
-                wave_npoints = wave[idx_wave]
-                #n_wave = wave_npoints.shape[0]
+                wave_npoints     = wave[idx_wave]
                 spectrum_npoints = spectrum_positive[idx_wave]
                 
                 coeffs = natural_cubic_spline_coeffs(wave_npoints, spectrum_npoints.unsqueeze(-1))
                 spline = NaturalCubicSpline(coeffs)
                 
-                wave_positive = wave[idx_original]
-                #spline_values = spline.evaluate(wave_npoints) 
                 spline_values = spline.evaluate(wave_positive).squeeze(-1) 
                 #spline_tensor = torch.zeros_like(spectrum_positive)
                 #spline_tensor[idx_wave] = spline_values.squeeze(-1)
                 
-                continuum_divided = torch.zeros_like(spectrum_positive)
-                #continuum_divided[mask] = spectrum_positive[mask] / spline_tensor[mask]
-                continuum_divided = spectrum_positive / spline_values
-                continuum_divided = continuum_divided - 1.0
+                continuum_divided_full[idx_original] = spectrum_positive / spline_values
+                #continuum_divided = continuum_divided
                 
                 # --- Paso 4: Apodización ---
-                n_positives = len(spectrum_positive)
-                n_apod = max(1, int(n_positives * apod_fraction))
+                n_positives = spectrum_positive.shape[0]
+                n_apod      = max(1, int(n_positives * apod_fraction))
                 apod_window = torch.ones(n_positives, device=device)
                 
                 x = torch.linspace(0, np.pi / 2, n_apod, device=device)
                 apod_window[:n_apod] = torch.sin(x)**2
                 apod_window[-n_apod:] = torch.flip(torch.sin(x), dims=[0])**2
 
-                apodized_spectra = continuum_divided * apod_window  # [B, n_wave, T]
+                apodized_spectra = continuum_divided_full[idx_original] * apod_window  # [B, n_wave, T]
                 apodized_spectra = torch.nan_to_num(apodized_spectra, nan=0.0, posinf=0.0, neginf=0.0)
 
                 # Full espectrum
-                continuum_divided_full = torch.zeros_like(spectrum)
-                apodized_full = torch.zeros_like(spectrum)
-                spline_tensor_full = torch.zeros_like(spectrum)
-                continuum_divided_full[idx_original] = continuum_divided
-                apodized_full[idx_original] = apodized_spectra
-                spline_tensor_full[idx_original] = spline.evaluate(wave[idx_original]).squeeze(-1)
-
-
+                spline_tensor_full[idx_original]     = spline_values
+                apodized_full[idx_original]          = apodized_spectra
+                
                 final_continuum[batch_idx, time_idx, :] = continuum_divided_full
-                final_spline[batch_idx, time_idx, :] = spline_tensor_full
-                final_apod[batch_idx, time_idx, :] = apodized_full
-                final_spectra[batch_idx, time_idx, :] = apodized_full
+                final_spline[batch_idx, time_idx, :]    = spline_tensor_full
+                final_apod[batch_idx, time_idx, :]      = apodized_full
+                final_spectra[batch_idx, time_idx, :]   = apodized_full
 
         final_continuum = final_continuum.permute(0, 2, 1)  # [B, n_wave, T]
-        final_spline = final_spline.permute(0, 2, 1)
-        final_apod = final_apod.permute(0, 2, 1)
-        final_spectra = final_spectra.permute(0, 2, 1)  # [B, n_wave, T]
+        final_spline    = final_spline.permute(0, 2, 1)
+        final_apod      = final_apod.permute(0, 2, 1)
+        final_spectra   = final_spectra.permute(0, 2, 1)  # [B, n_wave, T]
         
         if return_continuum:
             return final_spectra, final_continuum, final_apod, final_spline, model_spectra
@@ -1779,7 +1775,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 1
+    epochs = 100
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
