@@ -1593,7 +1593,7 @@ class MPhy_VAE(L.LightningModule):
                 #spline_tensor[idx_wave] = spline_values.squeeze(-1)
                 
                 continuum_divided_full[idx_original] = spectrum_positive / spline_values
-                #continuum_divided = continuum_divided
+                continuum_divided_full[idx_original] -= 1
                 
                 # --- Paso 4: Apodización ---
                 n_positives = spectrum_positive.shape[0]
@@ -1782,7 +1782,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 100
+    epochs = 150
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
@@ -1793,12 +1793,12 @@ if __name__ == "__main__":
         project='SupernovaeMultimodalVAE',
         tags = ["Train"],
         job_type='train',
-        #name = (
-        #    f"{today}_MPhyVAE_nbins={initial_settings['spectrum_bins']}_"
-        #    f"LatentSize={initial_settings['latent_size']}_"
-        #    #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
-        #    f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
-        #),
+        name = (
+            f"{today}_MPhyVAE_nbins={initial_settings['spectrum_bins']}_"
+            f"LatentSize={initial_settings['latent_size']}_"
+            #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
+            f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
+        ),
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
         #name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
