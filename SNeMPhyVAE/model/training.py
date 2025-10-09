@@ -1026,7 +1026,7 @@ class MPhy_VAE(L.LightningModule):
         model_flux    = model_flux * amplitude[:, None]
         model_spectra = model_spectra * amplitude[:, None, None] #+ data['rainbow']
         #model_spectra = self._smooth_spectra(model_spectra)
-        model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=True, return_continuum=True)
+        model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_continuum=True)
         #model_astrodash = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=True, return_continuum=True)
         #model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = model_astrodash
         #model_spectra_continuum *= amplitude[:, None, None]
@@ -1449,16 +1449,19 @@ class MPhy_VAE(L.LightningModule):
 
         return model_spectra[...,0]
 
-    def _smooth_spectra(self, model_spectra, method='moving_average', window_size=None, kernel_size=None, n_points=None):
+    def _smooth_spectra(self, model_spectra, method='moving_average', window_size=None, n_points=None):
         """
         Smooth a tensor (B, N, T) using the specified method,
-        but only over non-zero values.
+        ensuring the output tensor maintains the size (B, N, T).
         """
         B, N, T = model_spectra.shape
 
-        # Asegurar que window_size es impar
+        # --- 1. Calcular y asegurar window_size impar ---
         if window_size is None:
-            window_size = max(3, int(N / n_points))
+            # Lógica de cálculo basada en n_points (si se usa) o un valor por defecto
+            # Asumo que self.N_WAVE o N debe usarse aquí si n_points es None
+            # Si n_points es None, simplemente se necesita un valor por defecto impar.
+            window_size = 5 if n_points is None else max(3, int(N / n_points)) 
             window_size = window_size if window_size % 2 != 0 else window_size + 1
         else:
             window_size = max(3, window_size)
@@ -1468,36 +1471,37 @@ class MPhy_VAE(L.LightningModule):
 
         if method == 'moving_average':
 
-            # Kernel shape for conv1d
+            # --- 2. Preparar Kernel y Tensor ---
             kernel = torch.ones(window_size, device=model_spectra.device) / window_size
-            #kernel = torch.ones(kernel_size, device=model_spectra.device) / kernel_size
             kernel = kernel.view(1, 1, -1)  # [1, 1, window_size]
 
-            # Reshape: [B, N, T] → [B*T, 1, N]
-            tensor   = model_spectra.permute(0, 2, 1).reshape(B * T, 1, N)
-            mask     = (tensor != 0).float()
+            # Reshape: [B, N, T] → [B*T, 1, N] (Ejes: [Batch*Time, Canales, Longitud_de_onda])
+            tensor = model_spectra.permute(0, 2, 1).reshape(B * T, 1, N)
+            
+            # Máscara para normalización (para manejar ceros)
+            mask = (tensor != 0).float() 
 
-            # Padding with reflect
+            # --- 3. Aplicar Padding con modo 'reflect' ---
             tensor_pad = F.pad(tensor, (pad_size, pad_size), mode='reflect')
             mask_pad   = F.pad(mask, (pad_size, pad_size), mode='reflect')
 
-            if isinstance(n_points, int):
-                stride = (N-kernel_size) // (n_points-1)
-                stride = max(1, stride)
-                print('stride', stride)
-            else:
-                stride = 1
-
-            # Suavizar valores reales y normalizar por cantidad válida
-            smoothed = F.conv1d(tensor_pad, kernel, padding=0, stride=stride)
-            norm     = F.conv1d(mask_pad, kernel, padding=0, stride=stride)
-            norm     = torch.clamp(norm, min=1e-6)  # evitar división por cero
+            # --- 4. Convolución y Normalización ---
+            
+            # CLAVE: stride = 1 para que el tamaño de salida (N) sea el mismo que el tamaño original.
+            # padding=0 funciona porque la entrada (tensor_pad) ya tiene el padding incorporado.
+            
+            smoothed = F.conv1d(tensor_pad, kernel, padding=0, stride=1) 
+            norm     = F.conv1d(mask_pad, kernel, padding=0, stride=1)
+            
+            norm     = torch.clamp(norm, min=1e-6)  # Evitar división por cero
             smoothed = smoothed / norm
-
+            
+            # --- 5. Reestructuración y Enmascaramiento Final ---
+            # Reshape de vuelta: [B*T, 1, N] → [B, T, N] → [B, N, T]
             smoothed = smoothed.view(B, T, N).permute(0, 2, 1)
+            
+            # Asegurar que los valores originales CERO sigan siendo CERO (post-suavizado)
             smoothed[model_spectra == 0] = 0.0
-
-            #smoothed = smoothed.view(B, T, -1).permute(0, 2, 1)
 
             return smoothed
 
@@ -1551,6 +1555,9 @@ class MPhy_VAE(L.LightningModule):
         from torchcubicspline import natural_cubic_spline_coeffs, NaturalCubicSpline
         device = model_spectra.device
         wave = torch.FloatTensor(wave).to(device)
+        
+        if is_smoothed == False:
+            model_spectra = self._smooth_spectra(model_spectra, method='moving_average', window_size=200,  n_points=None)
         
         transpose_model_spectra = model_spectra.permute(0, 2, 1)  # [B, T, n_wave]
         final_continuum = torch.zeros_like(transpose_model_spectra)
