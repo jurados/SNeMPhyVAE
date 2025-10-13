@@ -1788,7 +1788,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 2
+    epochs = 4
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
