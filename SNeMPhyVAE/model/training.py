@@ -701,7 +701,6 @@ class MPhy_VAE(L.LightningModule):
         # Apply intrinsic decoder
         model_spectra = self.decode_layers(stack_encoding)
 
-
         if color is not None:
             # Apply colors
             apply_colors = 10**(-0.4 * color[:, None])
@@ -1016,7 +1015,6 @@ class MPhy_VAE(L.LightningModule):
             encoding, ref_times, color, time, use_redshifts, data['band_indices']
         )
 
-
         # Analytically evaluate the conditional distribution for the amplitude and
         # sample from it.
         amplitude_mu, amplitude_logvar = self._compute_amplitude(obs_weight, model_flux,
@@ -1026,9 +1024,9 @@ class MPhy_VAE(L.LightningModule):
         model_flux    = model_flux * amplitude[:, None]
         model_spectra = model_spectra * amplitude[:, None, None] #+ data['rainbow']
         #model_spectra = self._smooth_spectra(model_spectra)
-        model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_continuum=True)
-        #model_astrodash = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=True, return_continuum=True)
-        #model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = model_astrodash
+        
+        #model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=True)
+        model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=False)
         #model_spectra_continuum *= amplitude[:, None, None]
 
         #model_wave = self.model_wave
@@ -1524,7 +1522,7 @@ class MPhy_VAE(L.LightningModule):
         else:
             raise ValueError(f"Smoothing method is not available: {method}")
 
-    def _astrodash_normalization(self, model_spectra, wave, n_points=13, apod_fraction=0.05, is_smoothed=False, return_continuum=False):
+    def _astrodash_normalization(self, model_spectra, wave, n_points=13, apod_fraction=0.05, is_smoothed=False, return_all=False):
         """Normalize spectra using the AstroDASH methodology
         (Muthukrishna et al. 2019), adapted for VAE-generated model spectra
         (Spectra are in reference frame). The normalization process consists of:
@@ -1568,7 +1566,9 @@ class MPhy_VAE(L.LightningModule):
         for batch_idx in range(transpose_model_spectra.shape[0]):
             for time_idx in range(transpose_model_spectra.shape[1]):
                 
-                spectrum = transpose_model_spectra[batch_idx, time_idx, :]
+                # I added +1 to avoid negative values that can affect the spline fitting
+                # Folliwing the suggestion in the AstroDASH code
+                spectrum = transpose_model_spectra[batch_idx, time_idx, :] + 1
                 
                 continuum_divided_full = torch.zeros_like(spectrum)
                 apodized_full          = torch.zeros_like(spectrum)
@@ -1593,7 +1593,13 @@ class MPhy_VAE(L.LightningModule):
                 #spline_tensor[idx_wave] = spline_values.squeeze(-1)
                 
                 continuum_divided_full[idx_original] = spectrum_positive / spline_values
+                continuum_divided_full[idx_original] = torch.nan_to_num(continuum_divided_full[idx_original], nan=0.0, posinf=1.0, neginf=0.0)
+                # Revisar esto quitarlo en caso de funcionar bien
+                #continuum_divided_full[idx_original] = torch.clamp(continuum_divided_full[idx_original], min=0.0, max=1.0)
                 continuum_divided_full[idx_original] -= 1
+                
+                # Normalización final
+                continuum_divided_full[idx_original] = (continuum_divided_full[idx_original] - torch.min(continuum_divided_full[idx_original])) / (torch.max(continuum_divided_full[idx_original]) - torch.min(continuum_divided_full[idx_original]) + 1e-8)
                 
                 # --- Paso 4: Apodización ---
                 n_positives = spectrum_positive.shape[0]
@@ -1605,7 +1611,7 @@ class MPhy_VAE(L.LightningModule):
                 apod_window[-n_apod:] = torch.flip(torch.sin(x), dims=[0])**2
 
                 apodized_spectra = continuum_divided_full[idx_original] * apod_window  # [B, n_wave, T]
-                apodized_spectra = torch.nan_to_num(apodized_spectra, nan=0.0, posinf=0.0, neginf=0.0)
+                apodized_spectra = torch.nan_to_num(apodized_spectra, nan=0.0, posinf=1.0, neginf=0.0)
 
                 # Full espectrum
                 spline_tensor_full[idx_original]     = spline_values
@@ -1621,7 +1627,7 @@ class MPhy_VAE(L.LightningModule):
         final_apod      = final_apod.permute(0, 2, 1)
         final_spectra   = final_spectra.permute(0, 2, 1)  # [B, n_wave, T]
         
-        if return_continuum:
+        if return_all:
             return final_spectra, final_continuum, final_apod, final_spline, model_spectra
         else:
             return final_spectra
