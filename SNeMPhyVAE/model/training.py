@@ -1025,8 +1025,8 @@ class MPhy_VAE(L.LightningModule):
         model_spectra = model_spectra * amplitude[:, None, None] #+ data['rainbow']
         #model_spectra = self._smooth_spectra(model_spectra)
         
-        #model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=True)
-        model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=False)
+        model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=True)
+        #model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=False)
         #model_spectra_continuum *= amplitude[:, None, None]
 
         #model_wave = self.model_wave
