@@ -1576,13 +1576,13 @@ class MPhy_VAE(L.LightningModule):
                 
                 mask = spectrum >= 0
                 idx_original = torch.where(mask)[0]
-                spectrum_positive = spectrum[mask]
+                spectrum_positive = spectrum[idx_original]
                 wave_positive = wave[idx_original]
                 
                 sp_idx = torch.linspace(0, len(idx_original)-1, steps=n_points).long()
                 idx_wave = idx_original[sp_idx]
                 
-                wave_npoints     = wave[idx_wave]
+                wave_npoints     = wave_positive[idx_wave]
                 spectrum_npoints = spectrum_positive[idx_wave]
                 
                 coeffs = natural_cubic_spline_coeffs(wave_npoints, spectrum_npoints.unsqueeze(-1))
@@ -1782,7 +1782,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 150
+    epochs = 2
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
@@ -1793,16 +1793,16 @@ if __name__ == "__main__":
         project='SupernovaeMultimodalVAE',
         tags = ["Train"],
         job_type='train',
-        name = (
-            f"{today}_MPhyVAE_nbins={initial_settings['spectrum_bins']}_"
-            f"LatentSize={initial_settings['latent_size']}_"
-            #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
-            f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
-        ),
+        #name = (
+        #    f"{today}_MPhyVAE_nbins={initial_settings['spectrum_bins']}_"
+        #    f"LatentSize={initial_settings['latent_size']}_"
+        #    #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
+        #    f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
+        #),
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
         #name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
-        #name="BORRAR_TEST_{today}",
+        name="BORRAR_TEST_{today}",
         config={
             'epochs': epochs,
             'batch_size': initial_settings['batch_size'],
