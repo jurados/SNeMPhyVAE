@@ -1806,9 +1806,9 @@ if __name__ == "__main__":
         #    f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
         #),
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
-        #name=f"TEST_{today}",
+        name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
-        name="BORRAR_TEST_{today}",
+        #name=f"BORRAR_TEST_{today}",
         config={
             'epochs': epochs,
             'batch_size': initial_settings['batch_size'],
