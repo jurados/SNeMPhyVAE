@@ -106,7 +106,7 @@ class MetricsCallback(Callback):
             #print(data_tidx)
             #data_tidx = data_tidx.unique()[0]
 
-            if trainer.current_epoch % 5 == 0:
+            if trainer.current_epoch % 2 == 0:
                 #print('Sending Light Curve')
                 # ========================================
                 # Light Curves
