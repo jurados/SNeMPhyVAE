@@ -1,11 +1,21 @@
 # ============= IMPORT LIBRARIES =============
+import os
+import sys
 import numpy as np
 import pandas as pd
 
 import scipy
 
 # Import custom settings
-from settings import initial_settings, band_info
+if os.getcwd().endswith('notebooks'):
+    PROJECT_ROOT = os.path.dirname(os.getcwd())
+    print(f"PROJECT_ROOT from lightcurve: {PROJECT_ROOT}")
+    from SNeMPhyVAE.model.settings import initial_settings, band_info
+else:
+    PROJECT_ROOT = os.getcwd()
+    from settings import initial_settings, band_info
+
+#from .model.settings import initial_settings, band_info
 # =============================================
 
 class LightCurves():
@@ -32,8 +42,8 @@ class LightCurves():
             perfom the cross-match between the object table and
             alerce table through merge function on the 'oids'.
         """
-        object_table_path           = './data/object_ZTF_ALeRCE_19052024.pkl'
-        lightcurves_alercextns_path = './data/lcs_transients_20240517.pkl'
+        object_table_path           = '../SNeMPhyVAE/data/object_ZTF_ALeRCE_19052024.pkl'
+        lightcurves_alercextns_path = '../SNeMPhyVAE/data/lcs_transients_20240517.pkl'
 
         object_table           = pd.read_pickle(filepath_or_buffer=object_table_path)
         lightcurves_alercextns = pd.read_pickle(filepath_or_buffer=lightcurves_alercextns_path)

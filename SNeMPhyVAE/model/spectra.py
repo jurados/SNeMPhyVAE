@@ -1,11 +1,22 @@
 # ============= IMPORT LIBRARIES =============
+import os
+import sys
 import numpy as np
 import pandas as pd
 
 from scipy.interpolate import UnivariateSpline
 
 # Import custom settings
-from settings import initial_settings
+if os.getcwd().endswith('notebooks'):
+    PROJECT_ROOT = os.path.dirname(os.getcwd())
+    print(f"PROJECT_ROOT from spectra: {PROJECT_ROOT}")
+    from SNeMPhyVAE.model.settings import initial_settings, band_info
+else:
+    PROJECT_ROOT = os.getcwd()
+    from settings import initial_settings, band_info
+
+#from settings import initial_settings
+#from SNeMPhyVAE.model.settings import initial_settings
 
 # =============================================
 
@@ -18,8 +29,8 @@ class Spectra():
 
     def _load_data(self):
 
-        object_table_path           = './data/object_ALeRCExWiserep20240630_20240703.pkl'
-        spectra_alercexwiserep_path = './data/spectra_ALeRCE20240801_x_wisrep_20240622.pkl'
+        object_table_path           = '../SNeMPhyVAE/data/object_ALeRCExWiserep20240630_20240703.pkl'
+        spectra_alercexwiserep_path = '../SNeMPhyVAE/data/spectra_ALeRCE20240801_x_wisrep_20240622.pkl'
 
         object_table           = pd.read_pickle(filepath_or_buffer=object_table_path)
         spectra_alercexwiserep = pd.read_pickle(filepath_or_buffer=spectra_alercexwiserep_path)

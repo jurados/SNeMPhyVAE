@@ -1,5 +1,18 @@
+import os
+import sys
 import argparse
-from settings import initial_settings
+
+if os.getcwd().endswith('notebooks'):
+    PROJECT_ROOT = os.path.dirname(os.getcwd())
+    print(f"PROJECT_ROOT from lightcurve: {PROJECT_ROOT}")
+    from SNeMPhyVAE.model.settings import initial_settings, band_info
+else:
+    PROJECT_ROOT = os.getcwd()
+    from settings import initial_settings, band_info
+
+#from settings import initial_settings
+#from SNeMPhyVAE.model.settings import initial_settings
+
 
 def update_settings(sertings_dict, sp_req=False, sn_req=False, ls_req=False):
 

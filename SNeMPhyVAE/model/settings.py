@@ -1,3 +1,12 @@
+import os
+import sys
+if os.getcwd().endswith('notebooks'):
+    PROJECT_ROOT = os.path.dirname(os.getcwd())
+else:
+    PROJECT_ROOT = os.getcwd()
+    
+print(f"PROJECT_ROOT from settings: {PROJECT_ROOT}")
+
 initial_settings = {
     'sideral_scale': 86400. / 86164.0905, # days per sidereal year
 

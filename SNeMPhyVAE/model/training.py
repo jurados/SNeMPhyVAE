@@ -1788,7 +1788,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 100
+    epochs = 1
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
@@ -1806,9 +1806,9 @@ if __name__ == "__main__":
         #    f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
         #),
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
-        name=f"TEST_{today}",
+        #name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
-        #name=f"BORRAR_TEST_{today}",
+        name=f"BORRAR_TEST_{today}",
         config={
             'epochs': epochs,
             'batch_size': initial_settings['batch_size'],
