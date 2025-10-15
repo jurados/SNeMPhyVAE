@@ -24,3 +24,6 @@ SNeMPhyVAE/results/
 
 # Keys and credentials
 SNeMPhyVAE/WANDB_API.key
+
+# Other folders
+references/
