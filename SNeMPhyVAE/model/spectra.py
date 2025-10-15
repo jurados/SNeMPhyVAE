@@ -3,20 +3,17 @@ import os
 import sys
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from scipy.interpolate import UnivariateSpline
 
 # Import custom settings
 if os.getcwd().endswith('notebooks'):
     PROJECT_ROOT = os.path.dirname(os.getcwd())
-    print(f"PROJECT_ROOT from spectra: {PROJECT_ROOT}")
     from SNeMPhyVAE.model.settings import initial_settings, band_info
 else:
     PROJECT_ROOT = os.getcwd()
     from settings import initial_settings, band_info
-
-#from settings import initial_settings
-#from SNeMPhyVAE.model.settings import initial_settings
 
 # =============================================
 
@@ -28,7 +25,19 @@ class Spectra():
         self.initial_settings = settings
 
     def _load_data(self):
-
+        """
+        Load spectra data from pickle files and merge them. There are two main files:
+        
+        - object_table: Contains metadata about the objects.
+        - spectra_alercexwiserep: Contains the spectral data.
+        
+        Returns:
+        --------
+        spectra: '~pd.DataFrame'
+            Merged DataFrame containing spectra and their associated metadata,
+            based on the 'oid' column.
+        """
+        
         object_table_path           = '../SNeMPhyVAE/data/object_ALeRCExWiserep20240630_20240703.pkl'
         spectra_alercexwiserep_path = '../SNeMPhyVAE/data/spectra_ALeRCE20240801_x_wisrep_20240622.pkl'
 
@@ -44,50 +53,54 @@ class Spectra():
         return spectra
 
     def obtain_data(self):
-
+        """
+        Load and filter the spectra data to remove entries with all NaN flux values.
+        
+        Returns:
+        --------
+        data: '~pd.DataFrame'
+            Filtered DataFrame containing only spectra with valid flux data.
+        """
         data = self._load_data()
         mask = data.flux_lambda_smooth.apply(lambda x: np.all(np.isnan(x)))
-        #for _, spectrum in data.iterrows():
-        #    if np.isnan(spectrum.flux_lambda_smooth).all():
-        #        print(f"Warning: Empty flux array for spectrum with oid: {spectrum.oid}")
-        #        continue
 
         return data[~mask].copy().reset_index(drop=True)
 
     def _preprocess_flux(self, spectrum):
         """
-        Genera la grilla de longitudes de onda y extrae los índices y el flujo no nulo.
+        Generates the wavelength grid and extracts non-zero flux indices.
 
         Parameters:
         -----------
-        spectrum : '~pd.Series'
-            Registro de espectro que debe contener 'lambda_grid_min', 'lambda_grid_max'
-            y 'flux_lambda_smooth'.
+        spectrum: `~pd.Series`
+            Spectral record that must contain 'lambda_grid_min', 'lambda_grid_max',
+            and 'flux_lambda_smooth' keys.
 
         Returns:
         --------
-        flux_nonzero : '~np.ndarray'
-            Array con los valores de flujo en los índices no nulos.
-        wave_nonzero : '~np.ndarray'
-            Array con las longitudes de onda correspondientes a los índices no nulos.
-        state : dict
-            Diccionario con información intermedia (por ejemplo, la grilla completa y los índices)
-            para ser utilizado en etapas posteriores.
+        flux_nonzero: `~np.ndarray`
+            Array containing flux values at non-zero indices.
+        wave_nonzero: `~np.ndarray`
+            Array containing wavelengths corresponding to non-zero indices.
+        spectra_dict: dict
+            Dictionary with intermediate information (complete grid, indices, etc.)
+            for use in subsequent processing stages.
         """
-        # Crear la grilla de longitudes de onda usando escala logarítmica
+        # Create wavelength grid and extract flux
         wave_range = np.logspace(
             np.log10(spectrum.lambda_grid_min),
             np.log10(spectrum.lambda_grid_max),
             1838#,self.initial_settings['spectrum_bins']
         )
+        
         # 1. De-redshifting (To rest-frame)
         redshift = np.nan_to_num(float(spectrum['redshift']))
         wave_range /= (1 + redshift)
 
-        # Reemplazar NaN por 0 y valores negativos por 0
+        # Reeplace negative flux and NaN values by 0
         flux = np.nan_to_num(spectrum['flux_lambda_smooth'], nan=0.0)
 
-        state = {
+        spectra_dict = {
             'oid':             spectrum.oid,
             'wave_range':      wave_range,
             'flux':            flux,
@@ -98,22 +111,22 @@ class Spectra():
             'final_spectrum':  np.zeros_like(flux)
         }
 
-        #return flux[nonzero_mask], wave_range[nonzero_mask], state
-        return flux, wave_range, state
+        #return flux[nonzero_mask], wave_range[nonzero_mask], spectra_dict
+        return flux, wave_range, spectra_dict
 
-    def normalize_spectrum(self, flux, state):
+    def normalize_spectrum(self, flux, spectra_dict):
         """
-        Normaliza el espectro dividiendo el flujo por su valor máximo.
+        Normalizes the spectrum by dividing the flux by its maximum value.
 
         Parameters:
         -----------
-        spectrum : '~pd.Series'
-            Registro del espectro.
+        spectrum: '~pd.Series'
+            Spectral record.
 
         Returns:
         --------
-        flux_normalized : '~np.ndarray'
-            Flujo normalizado.
+        flux_normalized: '~np.ndarray'
+            Normalized flux.
         """
         if flux.size == 0:
             print(f"Warning: Empty flux array for spectrum")
@@ -126,26 +139,25 @@ class Spectra():
             return flux
 
         max_flux = np.max(flux)
-        state['flux_normalized'][state['mask']] = flux / max_flux
-        return flux/(max_flux)#, wave
+        spectra_dict['flux_normalized'][spectra_dict['mask']] = (flux - np.min(flux))/ (np.max(flux) - np.min(flux))
+        return (flux - np.min(flux))/ (np.max(flux) - np.min(flux))#, wave
 
-    def continuum_fitting(self, flux: np.ndarray, wave: np.ndarray, state: dict):
+    def continuum_fitting(self, flux: np.ndarray, wave: np.ndarray, spectra_dict: dict):
         """
-        
         Obtain the continuum fitting of a given spectrum using spline interpolation.
         
         Parameters:
         -----------
-        flux : '~np.ndarray'
+        flux: '~np.ndarray'
             specum flux (normalized).
-        wave : '~np.ndarray'
+        wave: '~np.ndarray'
             wavelengths.
-        state : dict
+        spectra_dict: dict
             Dictionary with intermediate information obtained from _grid_flux.
 
         Returns:
         --------
-        spectrum_flux : '~np.ndarray'
+        spectrum_flux '~np.ndarray'
             Spectrum with the continuum fitting applied (flux divided by the continuum).
         """
 
@@ -153,8 +165,8 @@ class Spectra():
             print('There are not enought data. < 13')
             return flux
 
-        wave = wave[state['mask']]
-        flux = flux[state['mask']]
+        wave = wave[spectra_dict['mask']]
+        flux = flux[spectra_dict['mask']]
 
         indx = np.linspace(0, len(wave)-1, 13,  dtype=int)
         indx = np.unique(indx)
@@ -174,25 +186,26 @@ class Spectra():
         # Evalaute the spline at the knots to check
         continuum = spline(wave)
 
-        # Save the continuum flux in the state dictionary
-        state['continuum_flux'][state['mask']] = flux / continuum
+        # Save the continuum flux in the spectra_dict dictionary
+        spectra_dict['continuum_flux'][spectra_dict['mask']] = flux / continuum
 
         return flux / continuum
 
-    def apodization(self, flux, state, fraction=0.05):
+    def apodization(self, flux, spectra_dict, fraction=0.05):
         """
-        Apply apodization to the spectrum using a 'cosine bell' window at the start and end.
+        Apply apodization to the spectrum using a 'cosine bell' window 
+        at the start and end.
 
         Parameters
         ----------
-        flux : np.ndarray
+        flux: '~np.ndarray'
             Flux vector.
-        fraction : float
+        fraction: float
             Spectrum fraction to apply the window (default 5%).
 
         Returns
         -------
-        flux_apodized : np.ndarray
+        flux_apodized: '~np.ndarray'
             Apodized flux vector.
         """
         if len(flux) == 0: # There are not enough data
@@ -205,7 +218,7 @@ class Spectra():
         window[:n_apod]  = np.sin(x)**2
         window[-n_apod:] = np.sin(x[::-1])**2
 
-        state['flux_apodized'][state['mask']] = flux * window
+        spectra_dict['flux_apodized'][spectra_dict['mask']] = flux * window
         return flux * window
 
     def process_spectrum(self, spectra, slice_spectrum=False):
@@ -235,24 +248,24 @@ class Spectra():
         # Iterarate over each spectrum
         for _, spectrum in spectra.iterrows():
 
-            flux, wave, state = self._preprocess_flux(spectrum)
+            flux, wave, spectra_dict = self._preprocess_flux(spectrum)
             flux += np.abs(np.min(flux))
 
             # Index mask for valid flux values
             mask = (flux > 0) & np.isfinite(flux)
-            state['mask'] = mask
+            spectra_dict['mask'] = mask
 
-            spec_flux = self.continuum_fitting(flux, wave, state)
+            spec_flux = self.continuum_fitting(flux, wave, spectra_dict)
             if len(spec_flux) == 0:
                 continue
 
             spec_flux = spec_flux - 1
 
-            spec_flux = self.apodization(spec_flux, state)
+            spec_flux = self.apodization(spec_flux, spectra_dict)
             if len(spec_flux) == 0:
                 continue
 
-            #spec_flux = self.normalize_spectrum(spec_flux, state)
+            #spec_flux = self.normalize_spectrum(spec_flux, spectra_dict)
             #if len(spec_flux) == 0:
             #    continue
 
@@ -260,12 +273,12 @@ class Spectra():
             #mask = spec_flux > 0
 
             # Actualizar los arrays en el estado en las posiciones de índices no nulos
-            #mask = state['nonzero_mask']
-            #state['flux_normalized'][mask] = norm_flux
-            #state['continuum_flux'][mask]  = state['flux_continuum_fit']
+            #mask = spectra_dict['nonzero_mask']
+            #spectra_dict['flux_normalized'][mask] = norm_flux
+            #spectra_dict['continuum_flux'][mask]  = spectra_dict['flux_continuum_fit']
 
-            #state['final_spectrum'][mask]  = spec_flux
-            state['final_spectrum'][state['mask']]  = spec_flux
+            #spectra_dict['final_spectrum'][mask]  = spec_flux
+            spectra_dict['final_spectrum'][spectra_dict['mask']]  = spec_flux
 
             #print(type(spec_flux))
             #final_spectrum[idx]  = self.slice_spectrum(spec_flux, target_size=self.initial_settings['spectrum_bins'])
@@ -275,12 +288,12 @@ class Spectra():
                 'oid':             spectrum.oid,
                 'mjd':             spectrum.mjd,
                 'redshift':        spectrum.get('redshift', np.nan),
-                'flux':            state['flux'],
-                'wave':            state['wave_range'],
-                'flux_continuum':  state['continuum_flux'],
-                'flux_apodized':   state['flux_apodized'],
-                'flux_normalized': state['flux_normalized'],
-                'final_spectrum':  state['final_spectrum'],
+                'flux':            spectra_dict['flux'],
+                'wave':            spectra_dict['wave_range'],
+                'flux_continuum':  spectra_dict['continuum_flux'],
+                'flux_apodized':   spectra_dict['flux_apodized'],
+                'flux_normalized': spectra_dict['flux_normalized'],
+                'final_spectrum':  spectra_dict['final_spectrum'],
                 'lambda_grid_min': spectrum.lambda_grid_min,
                 'lambda_grid_max': spectrum.lambda_grid_max,
                 'nlambda_grid':    spectrum.nlambda_grid,
@@ -358,3 +371,27 @@ class Spectra():
             smoothed = np.interp(x_target, x_original, smoothed)
 
         return smoothed
+
+if __name__ == "__main__":
+
+    spectra_processor = Spectra(snii_only=True)
+    spectra = spectra_processor.obtain_data()
+    print(f"Total spectra: {len(spectra)}")
+
+    processed_spectra = spectra_processor.process_spectrum(spectra, slice_spectrum=True)
+    print(processed_spectra.head())
+    
+    oidx_list = processed_spectra.oid.unique()
+    oidx = np.random.choice(oidx_list)
+    
+    fig, ax = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    spec = processed_spectra[processed_spectra.oid == oidx].iloc[0]
+    ax[0].plot(spec.wave, spec.flux, label='Original Flux', color='blue', alpha=0.5)
+    ax[0].set_ylabel('Flux')
+    ax[0].set_title(f'Spectrum OID: {spec.oid}')
+    ax[0].legend()
+
+    plt.show()
+    # Guardar los espectros procesados en un archivo pickle
+    #processed_spectra.to_pickle('../SNeMPhyVAE/data/processed_spectra_SNeII_ALeRCE20240801_x_wiserep_20240622.pkl')
+    #print("Processed spectra saved.")
