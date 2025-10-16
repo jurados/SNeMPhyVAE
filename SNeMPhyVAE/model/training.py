@@ -1698,7 +1698,7 @@ if __name__ == "__main__":
     # Load and process the light curves
     lightcurves = LightCurves(settings=initial_settings, snii_only=False).obtain_data()
     MLightCurve = LightCurves(instrument='ztf')
-    lightcurves = MLightCurve.process_lightcurves(lightcurves)
+    lightcurves = MLightCurve.preprocess_lightcurves(lightcurves)
     print('Lightcurves', lightcurves.head())
     print('Lightcurves columns:', lightcurves.columns)
     print('Lightcurves shape:', lightcurves.shape)
