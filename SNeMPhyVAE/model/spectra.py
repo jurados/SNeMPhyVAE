@@ -11,16 +11,19 @@ from scipy.interpolate import UnivariateSpline
 if os.getcwd().endswith('notebooks'):
     PROJECT_ROOT = os.path.dirname(os.getcwd())
     from SNeMPhyVAE.model.settings import initial_settings, band_info
+    from SNeMPhyVAE.model.lightcurves import LightCurves
 else:
     PROJECT_ROOT = os.getcwd()
     from settings import initial_settings, band_info
+    from lightcurves import LightCurves
 
 # =============================================
 
 class Spectra():
 
-    def __init__(self, settings=initial_settings, snii_only=False):
+    def __init__(self, settings=initial_settings, snii_only=False, snia_only=False):
 
+        self.snia_only = snia_only
         self.snii_only = snii_only
         self.initial_settings = settings
 
@@ -45,6 +48,10 @@ class Spectra():
         spectra_alercexwiserep = pd.read_pickle(filepath_or_buffer=spectra_alercexwiserep_path)
 
         spectra = pd.merge(left=spectra_alercexwiserep, right=object_table, on='oid')
+
+        if self.snia_only:
+            snia_labels = [label for label in spectra.true_label.unique() if 'SN Ia' in label]
+            spectra = spectra[spectra.true_label.isin(snia_labels)]
 
         if self.snii_only:
             snii_labels = [label for label in spectra.true_label.unique() if 'SN II' in label]
@@ -281,9 +288,9 @@ class Spectra():
             # This is made by the AstroDASH tutorial
             continuum_result = continuum_result - 1
             
-            norm_result = self.normalize_spectrum(continuum_result, spectra_dict)
+            #norm_result = self.normalize_spectrum(continuum_result, spectra_dict)
 
-            spec_flux = self.apodization(norm_result, spectra_dict)
+            spec_flux = self.apodization(continuum_result, spectra_dict)
             if len(spec_flux) == 0:
                 continue
 
@@ -426,7 +433,14 @@ class Spectra():
 
 if __name__ == "__main__":
 
-    spectra_processor = Spectra(snii_only=True)
+    snia_only = True
+    snii_only = False
+    
+    if snia_only:
+        print("Processing only SN Ia spectra")
+        preprocessed_lightcurves = pd.read_pickle('../SNeMPhyVAE/data/preprocessed_lightcurves_snia.pkl')
+
+    spectra_processor = Spectra(snii_only=snii_only, snia_only=True)
     spectra = spectra_processor.obtain_data()
     print(f"Total spectra: {len(spectra)}")
 
@@ -440,19 +454,29 @@ if __name__ == "__main__":
     prespec = preprocessed_spectra[preprocessed_spectra.oid == oidx].iloc[0]
     #print(prespec)
 
-    fig, axes = plt.subplots(3, 1, figsize=(10, 12),
-                             sharex=True, 
-                             #gridspec_kw={'hspace': 0.05}
-                             )
-    axes[0].plot(prespec.wave, spec.flux_lambda , label='Original Flux', color='orange', alpha=0.5)
-    axes[1].plot(prespec.wave, prespec.flux, label='Processed Flux', color='red', alpha=0.5)
-    axes[1].plot(prespec.wave, prespec.flux_spline, label='Continuum Flux', color='green', alpha=0.5)
-    axes[2].plot(prespec.wave_sliced, prespec.flux_sliced, label='PreProcess Flux', color='blue', alpha=0.5)
+    #fig, axes = plt.subplots(3, 1, figsize=(10, 12),
+    #                         sharex=True, 
+    #                         #gridspec_kw={'hspace': 0.05}
+    #                         )
+    #axes[0].plot(prespec.wave, spec.flux_lambda , label='Original Flux', color='orange', alpha=0.5)
+    #axes[1].plot(prespec.wave, prespec.flux, label='Processed Flux', color='red', alpha=0.5)
+    #axes[1].plot(prespec.wave, prespec.flux_spline, label='Continuum Flux', color='green', alpha=0.5)
+    #axes[2].plot(prespec.wave_sliced, prespec.flux_sliced, label='PreProcess Flux', color='blue', alpha=0.5)
+    #
+    #for ax in axes:
+    #    ax.set_ylabel('Flux')
+    #    ax.legend(frameon=False)
+    #    
+    #fig.suptitle(f'Spectrum OID: {oidx}', fontsize=16)
+    #
+    #plt.show()
     
-    for ax in axes:
-        ax.set_ylabel('Flux')
-        ax.legend(frameon=False)
-        
-    fig.suptitle(f'Spectrum OID: {oidx}', fontsize=16)
+    common_oids = set(preprocessed_spectra.oid).intersection(set(preprocessed_lightcurves.oid))
+    spectra_final = preprocessed_spectra[preprocessed_spectra.oid.isin(common_oids)].copy()
+    spectra_final = spectra_processor.spectra_reference_time(spectra_final, preprocessed_lightcurves)
     
-    plt.show()
+    print("Columns:", spectra_final.columns)
+    print("Spectra shape:", spectra_final.shape)
+    print("Number of unique objects:", spectra_final['oid'].nunique())
+
+    spectra_final.to_pickle('../SNeMPhyVAE/data/preprocessed_spectra_snia.pkl')

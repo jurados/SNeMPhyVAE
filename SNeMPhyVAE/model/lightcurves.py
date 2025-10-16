@@ -6,6 +6,10 @@ import pandas as pd
 
 import scipy
 
+# This will be importat in some point
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 # Import custom settings
 if os.getcwd().endswith('notebooks'):
     PROJECT_ROOT = os.path.dirname(os.getcwd())
@@ -20,11 +24,12 @@ else:
 
 class LightCurves():
 
-    def __init__(self, settings=initial_settings, instrument:str = None, snii_only:bool =False):
+    def __init__(self, settings=initial_settings, instrument=None, snii_only=False, snia_only=False):
 
         self.lightcurves = None
         self.instrument  = instrument
         self.snii_only   = snii_only
+        self.snia_only   = snia_only
         self.initial_settings = settings
 
     def _load_data(self):
@@ -49,6 +54,9 @@ class LightCurves():
         lightcurves_alercextns = pd.read_pickle(filepath_or_buffer=lightcurves_alercextns_path)
 
         self.lightcurves = pd.merge(left=lightcurves_alercextns, right=object_table, on='oid')
+
+        if self.snia_only:
+            self.lightcurves = self.lightcurves[self.lightcurves['true_label'].isin(['SNIa'])]
 
         if self.snii_only:
             self.lightcurves = self.lightcurves[self.lightcurves['true_label'].isin(['SNIIn','SNIIb','SNII'])]
@@ -107,11 +115,12 @@ class LightCurves():
 
     def obtain_data(self):
         """
-        Carga y limpia los datos.
+        Load the data and clean it.
 
         Returns
         -------
-            '~pd.DataFrame': DataFrame final procesado.
+        lightcurves : '~pd.DataFrame': 
+            Final light curves
         """
         self.lightcurves = self._load_data()
         #self.lightcurves = self._clean(self.lightcurves)
@@ -197,8 +206,9 @@ class LightCurves():
 
         return reference_time
 
-    def process_light_curve(self, lightcurve):
-        """Preprocess a light curve for the ParSNIP model
+    def preprocess_lightcurve_parsnip(self, lightcurve):
+        """
+        Preprocess a light curve for the ParSNIP model
 
         Parameters
         ----------
@@ -269,7 +279,7 @@ class LightCurves():
 
         Parameters
         ----------
-        light_curves : `~pd.DataFrame`
+        light_curves: `~pd.DataFrame`
             Raw light curve
 
         Returns
@@ -278,7 +288,7 @@ class LightCurves():
             Preprocessed light curve
         """
 
-        new_lightcurves = [self.process_light_curve(
+        new_lightcurves = [self.preprocess_lightcurve_parsnip(
             group.sort_values(by='mjd')
             .drop_duplicates(subset=['fid', 'mjd'])
             .groupby('fid', group_keys=False)
@@ -299,7 +309,9 @@ class LightCurves():
             self.initial_settings.update({'bands': {'bands': ['ztfg', 'ztfr']}})
 
     def mag2flux(self,lightcurves):
-        """Convert the magnitud to flux using a system by default use AB_system
+        """
+        Convert the magnitud to flux using a system by default 
+        use AB_system
 
         Parameters
         ----------
@@ -330,7 +342,7 @@ class LightCurves():
 
         return lightcurves.drop(columns=['magpsf', 'sigmapsf'])
 
-    def process_lightcurves(self, lightcurves):
+    def preprocess_lightcurves(self, lightcurves):
 
         #lightcurves = lightcurves.copy()
         self._get_bands(lightcurves)
@@ -340,3 +352,15 @@ class LightCurves():
         #new_lightcurves = new_lightcurves.drop_duplicates(subset=['oid', 'fid', 'mjd'])
 
         return new_lightcurves
+    
+if __name__ == "__main__":
+    # Example usage
+    LCs = LightCurves(settings=initial_settings, instrument='ztf', snia_only=True)
+    lightcurves = LCs.obtain_data()
+    preprocessed_lightcurves = LCs.preprocess_lightcurves(lightcurves)
+    #print(preprocessed_lightcurves.head())
+    print("Columns:", preprocessed_lightcurves.columns)
+    print("Lightcurves shape:", preprocessed_lightcurves.shape)
+    print("Number of unique objects:", preprocessed_lightcurves['oid'].nunique())
+    
+    preprocessed_lightcurves.to_pickle('../SNeMPhyVAE/data/preprocessed_lightcurves_snia.pkl')

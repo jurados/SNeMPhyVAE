@@ -1599,7 +1599,7 @@ class MPhy_VAE(L.LightningModule):
                 continuum_divided_full[idx_original] -= 1
                 
                 # Normalización final
-                continuum_divided_full[idx_original] = (continuum_divided_full[idx_original] - torch.min(continuum_divided_full[idx_original])) / (torch.max(continuum_divided_full[idx_original]) - torch.min(continuum_divided_full[idx_original]) + 1e-8)
+                #continuum_divided_full[idx_original] = (continuum_divided_full[idx_original] - torch.min(continuum_divided_full[idx_original])) / (torch.max(continuum_divided_full[idx_original]) - torch.min(continuum_divided_full[idx_original]) + 1e-8)
                 
                 # --- Paso 4: Apodización ---
                 n_positives = spectrum_positive.shape[0]
