@@ -100,8 +100,8 @@ class CompleteDataset:
         spectra_data = {
             'oid':             oid,
             'mjd':             spectrum_group['mjd'].to_numpy(),
-            'flux':            spectrum_group['final_spectrum'].to_numpy(),
-            'wave':            spectrum_group['wave'].to_numpy(),
+            'flux':            spectrum_group['flux_sliced'].to_numpy(),
+            'wave':            spectrum_group['wave_sliced'].to_numpy(),
             'lambda_grid_min': spectrum_group['lambda_grid_min'],
             'lambda_grid_max': spectrum_group['lambda_grid_max'],
             'nlambda_grid':    spectrum_group['nlambda_grid'].astype(int),
@@ -1708,7 +1708,7 @@ if __name__ == "__main__":
     spectra = Spectra(settings=initial_settings, snii_only=False).obtain_data()
     spectra = spectra[~spectra.oid.isin(['ZTF23aaoohpy', 'ZTF20aatzhhl', 'ZTF22aazuuin'])]
     MSpectra = Spectra()
-    spectra  = MSpectra.process_spectrum(spectra, slice_spectrum=True)
+    spectra  = MSpectra.preprocess_spectrum(spectra, slice_spectrum=True)
 
     print('Spectra', spectra.head())
     print('Spectra columns:', spectra.columns)
@@ -1788,7 +1788,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 1
+    epochs = 100
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,

@@ -69,6 +69,7 @@ class Spectra():
     def _preprocess_flux(self, spectrum):
         """
         Generates the wavelength grid and extracts non-zero flux indices.
+        Also performs de-redshifting to the rest-frame.
 
         Parameters:
         -----------
@@ -90,33 +91,44 @@ class Spectra():
         wave_range = np.logspace(
             np.log10(spectrum.lambda_grid_min),
             np.log10(spectrum.lambda_grid_max),
-            1838#,self.initial_settings['spectrum_bins']
+            1838
         )
         
         # 1. De-redshifting (To rest-frame)
-        redshift = np.nan_to_num(float(spectrum['redshift']))
-        wave_range /= (1 + redshift)
+        redshift   = np.nan_to_num(float(spectrum['redshift']))
+        wave_range = wave_range / (1 + redshift)
 
-        # Reeplace negative flux and NaN values by 0
-        flux = np.nan_to_num(spectrum['flux_lambda_smooth'], nan=0.0)
-
+        # Find the min and max indices of non-NaN values
+        flux = spectrum['flux_lambda_smooth'].copy()
+        mask = ~np.isnan(flux)
+        #print("mask:", len(mask), np.sum(mask))
+        #plt.plot(wave_range[mask], flux[mask])
+        #plt.show()
+        
+        #nonnan_maks = ~np.isnan(flux)
+        #if np.any(nonnan_maks):
+        #    idx = np.where(nonnan_maks)[0]
+        #    minIdx = max(0, idx[0]-1)
+        #    maxIdx = min(len(flux)-1, idx[-1]+1)
+        
+        #flux = np.nan_to_num(flux, nan=0.0)
         spectra_dict = {
             'oid':             spectrum.oid,
             'wave_range':      wave_range,
             'flux':            flux,
-            'continuum_flux':  np.zeros_like(flux),
-            'continuum_norm':  np.zeros_like(flux),
-            'flux_apodized':   np.zeros_like(flux),
-            'flux_normalized': np.zeros_like(flux),
-            'final_spectrum':  np.zeros_like(flux)
+            'flux_spline':     np.zeros_like(wave_range),
+            'flux_continuum':  np.zeros_like(wave_range),
+            'flux_apodized':   np.zeros_like(wave_range),
+            'flux_normalized': np.zeros_like(wave_range),
+            'final_spectrum':  np.zeros_like(wave_range),
+            'mask':            mask,
         }
 
-        #return flux[nonzero_mask], wave_range[nonzero_mask], spectra_dict
         return flux, wave_range, spectra_dict
 
     def normalize_spectrum(self, flux, spectra_dict):
         """
-        Normalizes the spectrum by dividing the flux by its maximum value.
+        Normalizes the spectrum using the minmax method.
 
         Parameters:
         -----------
@@ -128,21 +140,20 @@ class Spectra():
         flux_normalized: '~np.ndarray'
             Normalized flux.
         """
-        if flux.size == 0:
+        mask = spectra_dict['mask']
+        norm_flux = flux[mask]
+        
+        if norm_flux.size == 0:
             print(f"Warning: Empty flux array for spectrum")
             return np.zeros_like(flux)
 
-        flux = np.nan_to_num(flux, nan=0.0)
-        flux = np.clip(flux, 0, None)
-
-        if np.all(flux == 0):
+        if np.all(norm_flux == 0):
             return flux
 
-        max_flux = np.max(flux)
-        spectra_dict['flux_normalized'][spectra_dict['mask']] = (flux - np.min(flux))/ (np.max(flux) - np.min(flux))
-        return (flux - np.min(flux))/ (np.max(flux) - np.min(flux))#, wave
+        spectra_dict['flux_normalized'][mask] = (norm_flux - np.min(norm_flux)) / (np.max(norm_flux) - np.min(norm_flux))
+        return spectra_dict['flux_normalized']
 
-    def continuum_fitting(self, flux: np.ndarray, wave: np.ndarray, spectra_dict: dict):
+    def continuum_fitting(self, flux, wave, spectra_dict, nknots=13) -> np.ndarray:
         """
         Obtain the continuum fitting of a given spectrum using spline interpolation.
         
@@ -161,35 +172,41 @@ class Spectra():
             Spectrum with the continuum fitting applied (flux divided by the continuum).
         """
 
-        if flux.size < 13:
+        mask = spectra_dict['mask']
+
+        # This is added following the AstroDASH tutorial
+        flux_working = flux.copy()
+        flux_working[mask] = flux_working[mask]
+        #continuum_flux = np.copy(flux)
+
+        wave_spline = wave[mask]
+        flux_spline = flux_working[mask]
+        
+        if len(wave_spline) < 13:
             print('There are not enought data. < 13')
             return flux
-
-        wave = wave[spectra_dict['mask']]
-        flux = flux[spectra_dict['mask']]
-
-        indx = np.linspace(0, len(wave)-1, 13,  dtype=int)
-        indx = np.unique(indx)
-        wave_knots = wave[indx]
-        flux_knots = flux[indx]
-
-        sort_idx = np.argsort(wave_knots)
-        wave_knots = wave_knots[sort_idx]
-        flux_knots = flux_knots[sort_idx]
-
-        # Although, the knots should be unique and sorted, we ensure it here.
-        _, unique_idx = np.unique(wave_knots, return_index=True)
-        wave_knots = wave_knots[unique_idx]
-        flux_knots = flux_knots[unique_idx]
-
-        spline = UnivariateSpline(wave_knots, flux_knots, k=3)  # k=3 es spline cúbico, s=0 ajuste exacto
-        # Evalaute the spline at the knots to check
-        continuum = spline(wave)
-
+        
+        indx = np.linspace(0, len(wave_spline)-1, nknots, dtype=int)
+        
+        wave_knots = wave_spline[indx]
+        flux_knots = flux_spline[indx]
+        
+        # Fit a spline to the knots
+        # If k=3 (cubic spline) is too oscillatory.
+        spline = UnivariateSpline(wave_knots, flux_knots, k=3) 
+        # This is based on AstroDASH tutorial remake the spline
+        spline_wave  = np.linspace(wave_spline.min(), wave_spline.max(), nknots)
+        spline_point = spline(spline_wave)
+        spline       = UnivariateSpline(spline_wave, spline_point, k=3)
+        spline_point = spline(wave_spline)
+         
+        
+        spectra_dict['flux_spline'][mask] = spline_point
         # Save the continuum flux in the spectra_dict dictionary
-        spectra_dict['continuum_flux'][spectra_dict['mask']] = flux / continuum
+        
+        spectra_dict['flux_continuum'][mask] = flux[mask] / spline_point
 
-        return flux / continuum
+        return spectra_dict['flux_continuum']
 
     def apodization(self, flux, spectra_dict, fraction=0.05):
         """
@@ -208,20 +225,23 @@ class Spectra():
         flux_apodized: '~np.ndarray'
             Apodized flux vector.
         """
-        if len(flux) == 0: # There are not enough data
+        mask      = spectra_dict['mask']
+        apod_flux = flux[mask]
+        
+        if len(apod_flux) == 0: # There are not enough data
             return flux
 
-        n_apod = max(1, int(len(flux) * fraction))
+        n_apod = max(1, int(len(apod_flux) * fraction))
 
-        window = np.ones(len(flux))
+        window = np.ones(len(apod_flux))
         x = np.linspace(0, np.pi/2, n_apod)
         window[:n_apod]  = np.sin(x)**2
         window[-n_apod:] = np.sin(x[::-1])**2
 
-        spectra_dict['flux_apodized'][spectra_dict['mask']] = flux * window
-        return flux * window
+        spectra_dict['flux_apodized'][mask] = apod_flux * window
+        return spectra_dict['flux_apodized']
 
-    def process_spectrum(self, spectra, slice_spectrum=False):
+    def preprocess_spectrum(self, spectra, slice_spectrum=False):
         """
         Process a spectra set and add columns with the processed information.
 
@@ -249,19 +269,21 @@ class Spectra():
         for _, spectrum in spectra.iterrows():
 
             flux, wave, spectra_dict = self._preprocess_flux(spectrum)
-            flux += np.abs(np.min(flux))
-
-            # Index mask for valid flux values
-            mask = (flux > 0) & np.isfinite(flux)
-            spectra_dict['mask'] = mask
-
-            spec_flux = self.continuum_fitting(flux, wave, spectra_dict)
-            if len(spec_flux) == 0:
+            mask = spectra_dict['mask']            
+            # Add the minimum flux as a small constant to avoid 
+            # negative flux values
+            flux[mask] += np.abs(np.min(flux[mask]))
+            
+            continuum_result = self.continuum_fitting(flux, wave, spectra_dict)
+            if continuum_result is None:
                 continue
 
-            spec_flux = spec_flux - 1
+            # This is made by the AstroDASH tutorial
+            continuum_result = continuum_result - 1
+            
+            norm_result = self.normalize_spectrum(continuum_result, spectra_dict)
 
-            spec_flux = self.apodization(spec_flux, spectra_dict)
+            spec_flux = self.apodization(norm_result, spectra_dict)
             if len(spec_flux) == 0:
                 continue
 
@@ -278,7 +300,7 @@ class Spectra():
             #spectra_dict['continuum_flux'][mask]  = spectra_dict['flux_continuum_fit']
 
             #spectra_dict['final_spectrum'][mask]  = spec_flux
-            spectra_dict['final_spectrum'][spectra_dict['mask']]  = spec_flux
+            spectra_dict['final_spectrum']  = spec_flux
 
             #print(type(spec_flux))
             #final_spectrum[idx]  = self.slice_spectrum(spec_flux, target_size=self.initial_settings['spectrum_bins'])
@@ -288,12 +310,14 @@ class Spectra():
                 'oid':             spectrum.oid,
                 'mjd':             spectrum.mjd,
                 'redshift':        spectrum.get('redshift', np.nan),
-                'flux':            spectra_dict['flux'],
                 'wave':            spectra_dict['wave_range'],
-                'flux_continuum':  spectra_dict['continuum_flux'],
+                'flux':            spectra_dict['flux'],
+                'flux_spline':     spectra_dict['flux_spline'],
+                'flux_continuum':  spectra_dict['flux_continuum'],
                 'flux_apodized':   spectra_dict['flux_apodized'],
                 'flux_normalized': spectra_dict['flux_normalized'],
                 'final_spectrum':  spectra_dict['final_spectrum'],
+                'mask':            spectra_dict['mask'],
                 'lambda_grid_min': spectrum.lambda_grid_min,
                 'lambda_grid_max': spectrum.lambda_grid_max,
                 'nlambda_grid':    spectrum.nlambda_grid,
@@ -302,7 +326,20 @@ class Spectra():
         result_df = pd.DataFrame(results)
 
         if slice_spectrum:
-            result_df['final_spectrum'] = result_df['final_spectrum'].apply(lambda x: self.slice_spectrum(x))
+            result_df['wave_sliced'] = result_df['wave'].apply(lambda x: self.slice_wavelength(x))
+            result_df['flux_sliced'] = result_df.apply(
+            lambda row: self.slice_spectrum(
+            row['final_spectrum'], 
+            row['wave'], 
+            method='savgol', 
+            window_size=9, 
+            polyorder=2
+        ), 
+        axis=1
+    )
+        else:
+            result_df['wave_sliced'] = result_df['wave']
+            result_df['flux_sliced'] = result_df['final_spectrum']
         return result_df
 
     def spectra_reference_time(self, spectra, lightcurves):
@@ -313,8 +350,31 @@ class Spectra():
         spectra = spectra.merge(reference_times, on='oid', how='left')
         spectra['time_index'] = np.round((spectra['reference_time'] - spectra['mjd']) * self.initial_settings['sideral_scale']).astype(int) + self.initial_settings['time_window'] // 2
         return spectra
+    
+    def slice_wavelength(self, wave, target_size=None):
+        """
+        Reduce the size of a wavelength array using interpolation.
 
-    def slice_spectrum(self, spectrum, method='moving_average', window_size=9, polyorder=2, sigma=1.0, target_size=None):
+        Parameters:
+        ------------
+        - wave: '~np.ndarray': 
+            Input wavelength array.
+        - target_size: int or None
+            Desired output size. If None, no size reduction is applied.
+        Returns:
+        --------
+            np.ndarray: Wavelength array reduced to target_size.
+        """
+        if target_size is None: 
+            target_size = self.initial_settings['spectrum_bins']
+
+        if target_size == len(wave):
+            return wave
+
+        wave_reduced = np.linspace(wave.min(), wave.max(), target_size)
+        return wave_reduced
+
+    def slice_spectrum(self, spectrum, wave, method='moving_average', window_size=9, polyorder=2, target_size=None):
         """
         Smooth and reduce the size of a spectrum using interpolation or averaging.
 
@@ -339,36 +399,28 @@ class Spectra():
         from scipy.ndimage import gaussian_filter1d
         from scipy.signal import savgol_filter
 
-        if target_size is None: target_size = self.initial_settings['spectrum_bins']
-
-        #spectrum = np.asarray(spectrum, dtype=np.float32)
-        if len(spectrum) == 0:
-            return np.zeros(target_size if target_size else len(spectrum))
+        if target_size is None: 
+            target_size = self.initial_settings['spectrum_bins']
 
         # Ensure window_size is odd
         window_size = max(3, min(window_size, len(spectrum)-1))
         if window_size % 2 == 0:
-            window_size += 1
+            window_size += 1 # Make it odd
 
         # Apply smoothing
         if method == 'savgol':
+            if polyorder >= window_size:
+                polyorder = max(1, window_size - 1)
             smoothed = savgol_filter(spectrum, window_length=window_size, polyorder=polyorder, mode='interp')
-
-        elif method == 'gaussian':
-            smoothed = gaussian_filter1d(spectrum, sigma=sigma, mode='reflect')
 
         elif method == 'moving_average':
             kernel   = np.ones(window_size) / window_size
             smoothed = np.convolve(spectrum, kernel, mode='same')
 
-        else:
-            raise ValueError("Method dont available. Use 'gaussian' or 'moving_average'.")
-
         # Size reduction if target_size is specified
-        if target_size is not None and target_size < len(smoothed):
-            x_original = np.linspace(0, 1, len(smoothed))
-            x_target = np.linspace(0, 1, target_size)
-            smoothed = np.interp(x_target, x_original, smoothed)
+        if target_size is not None and target_size != len(smoothed):
+            wave_target = np.linspace(wave.min(), wave.max(), target_size)
+            smoothed = np.interp(wave_target, wave, smoothed)
 
         return smoothed
 
@@ -378,20 +430,29 @@ if __name__ == "__main__":
     spectra = spectra_processor.obtain_data()
     print(f"Total spectra: {len(spectra)}")
 
-    processed_spectra = spectra_processor.process_spectrum(spectra, slice_spectrum=True)
-    print(processed_spectra.head())
+    preprocessed_spectra = spectra_processor.preprocess_spectrum(spectra, slice_spectrum=True)
+    #print(preprocessed_spectra.head())
     
-    oidx_list = processed_spectra.oid.unique()
+    oidx_list = preprocessed_spectra.oid.unique()
     oidx = np.random.choice(oidx_list)
     
-    fig, ax = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
-    spec = processed_spectra[processed_spectra.oid == oidx].iloc[0]
-    ax[0].plot(spec.wave, spec.flux, label='Original Flux', color='blue', alpha=0.5)
-    ax[0].set_ylabel('Flux')
-    ax[0].set_title(f'Spectrum OID: {spec.oid}')
-    ax[0].legend()
+    spec = spectra[spectra.oid == oidx].iloc[0]
+    prespec = preprocessed_spectra[preprocessed_spectra.oid == oidx].iloc[0]
+    #print(prespec)
 
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12),
+                             sharex=True, 
+                             #gridspec_kw={'hspace': 0.05}
+                             )
+    axes[0].plot(prespec.wave, spec.flux_lambda , label='Original Flux', color='orange', alpha=0.5)
+    axes[1].plot(prespec.wave, prespec.flux, label='Processed Flux', color='red', alpha=0.5)
+    axes[1].plot(prespec.wave, prespec.flux_spline, label='Continuum Flux', color='green', alpha=0.5)
+    axes[2].plot(prespec.wave_sliced, prespec.flux_sliced, label='PreProcess Flux', color='blue', alpha=0.5)
+    
+    for ax in axes:
+        ax.set_ylabel('Flux')
+        ax.legend(frameon=False)
+        
+    fig.suptitle(f'Spectrum OID: {oidx}', fontsize=16)
+    
     plt.show()
-    # Guardar los espectros procesados en un archivo pickle
-    #processed_spectra.to_pickle('../SNeMPhyVAE/data/processed_spectra_SNeII_ALeRCE20240801_x_wiserep_20240622.pkl')
-    #print("Processed spectra saved.")
