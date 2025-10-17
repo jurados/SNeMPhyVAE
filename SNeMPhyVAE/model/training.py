@@ -1691,104 +1691,126 @@ class MPhy_VAE(L.LightningModule):
 
 if __name__ == "__main__":
     
-    #from update import update_settings
-    #
-    initial_settings = update_settings(initial_settings, ls_req=True)
     
-    # Load and process the light curves
-    lightcurves = LightCurves(settings=initial_settings, snii_only=False).obtain_data()
-    MLightCurve = LightCurves(instrument='ztf')
-    lightcurves = MLightCurve.preprocess_lightcurves(lightcurves)
-    print('Lightcurves', lightcurves.head())
-    print('Lightcurves columns:', lightcurves.columns)
-    print('Lightcurves shape:', lightcurves.shape)
-    print('Number of lightcurves:', len(lightcurves.oid.unique()))
-
-    # Load and process the spectra
-    spectra = Spectra(settings=initial_settings, snii_only=False).obtain_data()
-    spectra = spectra[~spectra.oid.isin(['ZTF23aaoohpy', 'ZTF20aatzhhl', 'ZTF22aazuuin'])]
-    MSpectra = Spectra()
-    spectra  = MSpectra.preprocess_spectrum(spectra, slice_spectrum=True)
-
-    print('Spectra', spectra.head())
-    print('Spectra columns:', spectra.columns)
-    print('Spectra shape:', spectra.shape)
-    print('Number of spectra:', len(spectra.oid.unique()))
-    common_oids = set(spectra.oid.unique()) & set(lightcurves.oid.unique())
-    spectra     = spectra[spectra.oid.isin(common_oids)]
-    lightcurves = lightcurves[lightcurves.oid.isin(common_oids)]
-
-    # Obtain the redshift
-    lightcurves = lightcurves.merge(spectra[['oid', 'redshift']], on='oid', how='left')
-    lightcurves['redshift'] = lightcurves['redshift'].replace('nan', 0.1)
-
-    spectra = MSpectra.spectra_reference_time(spectra, lightcurves)
-
-    # Find common OIDs
-    try:
-        oids = list(set(spectra.oid.unique()) & set(lightcurves.oid.unique()))#) & set(rainbow_spectra.oid.unique()))# & set(photo_vel.oid.unique()))
-    except:
-        pass
-
-    test_oids = []
-    if 'ZTF22aaeviey' in oids:
-        test_oids.append('ZTF22aaeviey')
-        oids.remove('ZTF22aaeviey')  # Remove it from the main list
-
-    # 2. Split the 80% remaining into TRAIN (80%) and TEST (20%)
-    remaining_train_oids, remaining_test_oids = train_test_split(oids, test_size=0.2)
-
-    # 3. Ensure the special OID is in the test set
-    test_oids.extend(remaining_test_oids)
-    train_oids = remaining_train_oids
-
-    # Divide the data into training and validation sets per modality
-    train_data_lightcurves = lightcurves[lightcurves.oid.isin(train_oids)]
-    train_data_spectra     = spectra[spectra.oid.isin(train_oids)]
-    #train_data_rainbow     = rainbow_spectra[rainbow_spectra.oid.isin(train_oids)]
-    #train_data_photovel    = photo_vel[photo_vel.oid.isin(train_oids)]
-
-    #val_data_lightcurves = lightcurves[lightcurves.oid.isin(val_oids)]
-    #val_data_spectra     = spectra[spectra.oid.isin(val_oids)]
-    #val_data_rainbow     = rainbow_spectra[rainbow_spectra.oid.isin(val_oids)]
-
-    test_data_lightcurves = lightcurves[lightcurves.oid.isin(test_oids)]
-    test_data_spectra     = spectra[spectra.oid.isin(test_oids)]
-
-
-    #train_data_lightcurves = pd.read_pickle('./data/train_data_lightcurves.pkl')
-    #train_data_spectra     = pd.read_pickle('./data/train_data_spectra.pkl')
-    #test_data_lightcurves  = pd.read_pickle('./data/test_data_lightcurves.pkl')
-    #test_data_spectra      = pd.read_pickle('./data/test_data_spectra.pkl')
+    ##from update import update_settings
+    ##
+    #initial_settings = update_settings(initial_settings, ls_req=True)
     #
-    #special_oid = 'ZTF22aaeviey'
-
-    #train_data_lightcurves.to_pickle('train_data_lightcurves.pkl')
-    #test_data_lightcurves.to_pickle('test_data_lightcurves.pkl')
-    #train_data_spectra.to_pickle('train_data_spectra.pkl')
-    #test_data_spectra.to_pickle('test_data_spectra.pkl')
-
-    #Función para reordenar un DataFrame, poniendo special_oid primero
-    #def reorder_df(df, oid_col='oid', special_oid=special_oid):
-    #    if special_oid in df[oid_col].values:
-    #        # Separar el special_oid y el resto
-    #        special_data = df[df[oid_col] == special_oid]
-    #        other_data = df[df[oid_col] != special_oid]
-    #        # Concatenar con special_oid primero
-    #        return pd.concat([special_data, other_data], ignore_index=True)
-    #    return df
+    ## Load and process the light curves
+    #lightcurves = LightCurves(settings=initial_settings, snii_only=False).obtain_data()
+    #MLightCurve = LightCurves(instrument='ztf')
+    #lightcurves = MLightCurve.preprocess_lightcurves(lightcurves)
+    #print('Lightcurves', lightcurves.head())
+    #print('Lightcurves columns:', lightcurves.columns)
+    #print('Lightcurves shape:', lightcurves.shape)
+    #print('Number of lightcurves:', len(lightcurves.oid.unique()))
+#
+    ## Load and process the spectra
+    #spectra = Spectra(settings=initial_settings, snii_only=False).obtain_data()
+    #spectra = spectra[~spectra.oid.isin(['ZTF23aaoohpy', 'ZTF20aatzhhl', 'ZTF22aazuuin'])]
+    #MSpectra = Spectra()
+    #spectra  = MSpectra.preprocess_spectrum(spectra, slice_spectrum=True)
+#
+    #print('Spectra', spectra.head())
+    #print('Spectra columns:', spectra.columns)
+    #print('Spectra shape:', spectra.shape)
+    #print('Number of spectra:', len(spectra.oid.unique()))
+    #common_oids = set(spectra.oid.unique()) & set(lightcurves.oid.unique())
+    #spectra     = spectra[spectra.oid.isin(common_oids)]
+    #lightcurves = lightcurves[lightcurves.oid.isin(common_oids)]
+#
+    ## Obtain the redshift
+    #lightcurves = lightcurves.merge(spectra[['oid', 'redshift']], on='oid', how='left')
+    #lightcurves['redshift'] = lightcurves['redshift'].replace('nan', 0.1)
+#
+    #spectra = MSpectra.spectra_reference_time(spectra, lightcurves)
+#
+    ## Find common OIDs
+    #try:
+    #    oids = list(set(spectra.oid.unique()) & set(lightcurves.oid.unique()))#) & set(rainbow_spectra.oid.unique()))# & set(photo_vel.oid.unique()))
+    #except:
+    #    pass
+#
+    #test_oids = []
+    #if 'ZTF22aaeviey' in oids:
+    #    test_oids.append('ZTF22aaeviey')
+    #    oids.remove('ZTF22aaeviey')  # Remove it from the main list
+#
+    ## 2. Split the 80% remaining into TRAIN (80%) and TEST (20%)
+    #remaining_train_oids, remaining_test_oids = train_test_split(oids, test_size=0.2)
+#
+    ## 3. Ensure the special OID is in the test set
+    #test_oids.extend(remaining_test_oids)
+    #train_oids = remaining_train_oids
+#
+    ## Divide the data into training and validation sets per modality
+    #train_data_lightcurves = lightcurves[lightcurves.oid.isin(train_oids)]
+    #train_data_spectra     = spectra[spectra.oid.isin(train_oids)]
+    ##train_data_rainbow     = rainbow_spectra[rainbow_spectra.oid.isin(train_oids)]
+    ##train_data_photovel    = photo_vel[photo_vel.oid.isin(train_oids)]
+#
+    ##val_data_lightcurves = lightcurves[lightcurves.oid.isin(val_oids)]
+    ##val_data_spectra     = spectra[spectra.oid.isin(val_oids)]
+    ##val_data_rainbow     = rainbow_spectra[rainbow_spectra.oid.isin(val_oids)]
+#
+    #test_data_lightcurves = lightcurves[lightcurves.oid.isin(test_oids)]
+    #test_data_spectra     = spectra[spectra.oid.isin(test_oids)]
+#
+#
+    ##train_data_lightcurves = pd.read_pickle('./data/train_data_lightcurves.pkl')
+    ##train_data_spectra     = pd.read_pickle('./data/train_data_spectra.pkl')
+    ##test_data_lightcurves  = pd.read_pickle('./data/test_data_lightcurves.pkl')
+    ##test_data_spectra      = pd.read_pickle('./data/test_data_spectra.pkl')
+    ##
+    ##special_oid = 'ZTF22aaeviey'
+#
+    ##train_data_lightcurves.to_pickle('train_data_lightcurves.pkl')
+    ##test_data_lightcurves.to_pickle('test_data_lightcurves.pkl')
+    ##train_data_spectra.to_pickle('train_data_spectra.pkl')
+    ##test_data_spectra.to_pickle('test_data_spectra.pkl')
+#
+    ##Función para reordenar un DataFrame, poniendo special_oid primero
+    ##def reorder_df(df, oid_col='oid', special_oid=special_oid):
+    ##    if special_oid in df[oid_col].values:
+    ##        # Separar el special_oid y el resto
+    ##        special_data = df[df[oid_col] == special_oid]
+    ##        other_data = df[df[oid_col] != special_oid]
+    ##        # Concatenar con special_oid primero
+    ##        return pd.concat([special_data, other_data], ignore_index=True)
+    ##    return df
+    ##
+    ### Aplicar a ambos DataFrames de test
+    ##test_data_lightcurves = reorder_df(test_data_lightcurves)
+    ##test_data_spectra     = reorder_df(test_data_spectra)
     #
-    ## Aplicar a ambos DataFrames de test
-    #test_data_lightcurves = reorder_df(test_data_lightcurves)
-    #test_data_spectra     = reorder_df(test_data_spectra)
+    #train_dataset = CompleteDataset(train_data_lightcurves, train_data_spectra)
+    #test_dataset  = CompleteDataset(test_data_lightcurves, test_data_spectra)
+    #train_loader  = DataLoader(train_dataset, batch_size=64, collate_fn=list, shuffle=True)
+    #test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
+
+    # I am working just with SNIa for now
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+    ligthcurves = pd.read_pickle(os.path.join(data_dir, 'preprocessed_lightcurves_snia.pkl'))
+    spectra     = pd.read_pickle(os.path.join(data_dir, 'preprocessed_spectra_snia.pkl'))
     
-    train_dataset = CompleteDataset(train_data_lightcurves, train_data_spectra)
-    test_dataset  = CompleteDataset(test_data_lightcurves, test_data_spectra)
-    train_loader  = DataLoader(train_dataset, batch_size=64, collate_fn=list, shuffle=True)
-    test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
+    ligthcurves['redshift'] = spectra.groupby('oid')['redshift'].first().reindex(ligthcurves['oid']).values
+    ligthcurves['redshift'] = ligthcurves['redshift'].replace('nan', 0.)
+    
+    
+    train_oids, test_oids = train_test_split(list(ligthcurves.oid.unique()), test_size=0.2, random_state=42)
+    train_dataset = CompleteDataset(
+        ligthcurves[ligthcurves.oid.isin(train_oids)],
+        spectra[spectra.oid.isin(train_oids)]
+        )
+    test_dataset  = CompleteDataset(
+        ligthcurves[ligthcurves.oid.isin(test_oids)],
+        spectra[spectra.oid.isin(test_oids)]
+        )
+    train_loader  = DataLoader(train_dataset, batch_size=initial_settings['batch_size'], collate_fn=list, shuffle=True)
+    test_loader   = DataLoader(test_dataset, batch_size=initial_settings['batch_size'], collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 100
+    epochs = 3
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
@@ -1808,7 +1830,7 @@ if __name__ == "__main__":
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
         #name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
-        name=f"BORRAR_TEST_{today}",
+        name=f"BORRAR_CPU_TEST_{today}",
         config={
             'epochs': epochs,
             'batch_size': initial_settings['batch_size'],
