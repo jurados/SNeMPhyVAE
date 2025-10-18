@@ -1025,8 +1025,8 @@ class MPhy_VAE(L.LightningModule):
         model_spectra = model_spectra * amplitude[:, None, None] #+ data['rainbow']
         #model_spectra = self._smooth_spectra(model_spectra)
         
-        model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=True)
-        #model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=False)
+        model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization_new(model_spectra, self.model_wave, is_smoothed=False, return_all=True)
+        #model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization_new(model_spectra, self.model_wave, is_smoothed=False, return_all=False)
         #model_spectra_continuum *= amplitude[:, None, None]
 
         #model_wave = self.model_wave
@@ -1522,6 +1522,119 @@ class MPhy_VAE(L.LightningModule):
         else:
             raise ValueError(f"Smoothing method is not available: {method}")
 
+    def _astrodash_normalization_new(self, model_spectra, wave, n_points=13, apod_fraction=0.05, is_smoothed=False, return_all=False):
+        """Normalize spectra using the AstroDASH methodology
+        (Muthukrishna et al. 2019), adapted for VAE-generated model spectra
+        (Spectra are in reference frame). The normalization process consists of:
+
+            1. Continuum estimation via n-point cubic spline interpolation.
+            2. Continuum division (spectral flattening).
+            3. Edge apodization using a cosine bell function.
+            4. Final normalization
+
+        This implementation uses GPU-accelerated computations via
+        torchcubicspline when available.
+
+        Parameters
+        ----------
+        - model_spectra: '~torch.Tensor'
+            Input spectra tensor from the VAE decoder with shape
+            (batch_size, spectrum_bins, time_window).
+        - n_points: int, optional
+            Number of control points for cubic spline interpolation (default=13).
+        - apod_fraction: float, optinal
+            Fraction of spectrum edges to apodize (default=0.05 at each end).
+
+        Returns
+        -------
+        - normalized_model_spectra: '~torch.Tensor'
+            Normalized model spectra.
+        """
+        from torchcubicspline import natural_cubic_spline_coeffs, NaturalCubicSpline
+        device = model_spectra.device
+        
+        #print("Starting AstroDASH normalization...")
+        batch, n_wave, time_window = model_spectra.shape
+        wave = torch.FloatTensor(wave).to(device)
+        
+        if not is_smoothed:
+            model_spectra = self._smooth_spectra(model_spectra, method='moving_average', window_size=200,  n_points=None)
+        
+        #rint('wave shape:',wave.shape)
+        denom = model_spectra.max(dim=1, keepdim=True)[0] - model_spectra.min(dim=1, keepdim=True)[0]
+        denom = torch.where(denom == 0, torch.ones_like(denom), denom)
+        norm_spectra = (model_spectra - model_spectra.min(dim=1, keepdim=True)[0]) / denom
+        norm_spectra = torch.nan_to_num(norm_spectra, nan=0.0, posinf=0.0, neginf=0.0)        
+        
+        
+        #transpose_model_spectra = model_spectra.permute(0, 2, 1)  # [B, T, n_wave]
+        #print('model_spectra shape:', model_spectra.shape)
+        #transpose_model_spectra = model_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
+        transpose_model_spectra = norm_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
+        #print('transpose_model_spectra shape:', transpose_model_spectra.shape)
+        #final_continuum = torch.zeros_like(transpose_model_spectra)
+        #final_spline    = torch.zeros_like(transpose_model_spectra)
+        #final_apod      = torch.zeros_like(transpose_model_spectra)
+        #final_spectra   = torch.zeros_like(transpose_model_spectra)
+        
+        spidx = torch.linspace(0, wave.shape[0]-1, steps=n_points).long()
+        wave_npoints    = wave[spidx]
+        spectra_npoints = transpose_model_spectra[spidx]
+        
+        #print('spectra_npoints shape:', spectra_npoints.shape)
+        coeffs = natural_cubic_spline_coeffs(wave_npoints, spectra_npoints) 
+        spline = NaturalCubicSpline(coeffs)
+        spline_values = spline.evaluate(wave)  # [n_wave, B*T] 
+        #print('spline_values shape:', spline_values.shape)     
+
+        continue_divided = transpose_model_spectra / spline_values  # [B*T, n_wave] 
+        
+        
+        #print('continue_divided shape:', continue_divided.shape)
+        continue_divided -= 1
+
+        n_apod      = max(1, int(wave.shape[0] * apod_fraction))
+        apod_window = torch.ones(wave.shape[0], device=device)
+        x = torch.linspace(0, np.pi / 2, n_apod, device=device)
+        apod_window[:n_apod] = torch.sin(x)**2
+        apod_window[-n_apod:] = torch.flip(torch.sin(x), dims=[0])**2
+        
+        
+        
+        
+        #print('apod_window shape:', apod_window.shape)
+        apodized_spectra = continue_divided * apod_window.unsqueeze(1)  # [B*T, n_wave]
+
+        #fig, ax = plt.subplots(3,1, figsize=(8,12))
+        #ax[0].plot(wave.cpu().numpy(), transpose_model_spectra[:,0].cpu().detach().numpy(), color='C0', label='Original Spectrum (example)')
+        #ax[0].plot(wave.cpu().numpy(), spline_values[:,0].cpu().detach().numpy(), color='C1', label='Cubic Spline Continuum (example)')
+        #ax[0].legend()
+        #ax[1].plot(wave.cpu().numpy(), continue_divided[:,0].cpu().detach().numpy(), color='C2', label='Continuum Divided Spectrum (example)')
+        ##ax[1].plot(wave.cpu().numpy(), continue_divided[:,0].cpu().detach().numpy(), color='C3', label='Continuum Divided Spectrum (example) - 1')
+        #ax[1].legend()
+        #ax[2].plot(wave.cpu().numpy(), apodized_spectra[:,0].cpu().detach().numpy(), color='C4', label='Apodized Spectrum (example)')
+        #ax[2].legend()
+        #ax[2].set_xlabel('Wavelength')
+        #plt.tight_layout()
+        #plt.show()
+
+        #print('apodized_spectra shape:', apodized_spectra.shape)
+        
+        #final_spectra   = apodized_spectra.reshape(n_wave, batch, time_window).permute(1, 0, 2)  # [B, n_wave, T]
+        final_spectra   = continue_divided.reshape(n_wave, batch, time_window).permute(1, 0, 2)  # [B, n_wave, T]
+        final_continuum = continue_divided.reshape(n_wave, batch, time_window).permute(1, 0, 2)
+        final_apod      = apodized_spectra.reshape(n_wave, batch, time_window).permute(1, 0, 2)
+        final_spline    = spline_values.reshape(n_wave, batch, time_window).permute(1, 0, 2)
+        #print('final_spectra shape:', final_spectra.shape)
+        
+        #print("Ending AstroDASH normalization...")
+        
+        if return_all:
+            #return final_spectra, final_continuum, final_apod, final_spline, model_spectra
+            return final_spectra, final_continuum, final_apod, final_spline, norm_spectra
+        else:
+            return final_spectra
+
     def _astrodash_normalization(self, model_spectra, wave, n_points=13, apod_fraction=0.05, is_smoothed=False, return_all=False):
         """Normalize spectra using the AstroDASH methodology
         (Muthukrishna et al. 2019), adapted for VAE-generated model spectra
@@ -1631,63 +1744,6 @@ class MPhy_VAE(L.LightningModule):
             return final_spectra, final_continuum, final_apod, final_spline, model_spectra
         else:
             return final_spectra
-        
-        #if not is_smoothed:
-#
-        #    # Seleccionar puntos de control equiespaciados dentro del rango válido
-        #    sp_idx = torch.linspace(0, len(valid_wave_indices) - 1, n_points).long()
-        #    wave_npoints = wave[valid_wave_indices][sp_idx]  # [n_points]
-        #    spectra_npoints = model_spectra[:, valid_wave_indices][:, sp_idx, :]  # [B, n_points, T]
-#
-        #    # --- Paso 2: Ajustar spline cúbico natural ---
-        #    #coeffs = natural_cubic_spline_coeffs(wave_npoints.to(device), spectra_npoints)
-        #    coeffs = natural_cubic_spline_coeffs(wave_npoints, spectra_npoints)
-        #    spline = NaturalCubicSpline(coeffs)
-#
-        #    wave_valid = wave[valid_wave_indices].to(device)
-        #    spline_values_valid = spline.evaluate(wave_valid)
-        #    spline_values = torch.zeros_like(model_spectra)
-        #    spline_values[:, valid_wave_indices, :] = spline_values_valid
-#
-        ##spline_values = spline.evaluate(wave.to(device))  # [B, n_wave, T]
-#
-        #else:
-        #    spline_values = self._smooth_spectra(model_spectra, method='moving_average', window_size=200, kernel_size=None, n_points=None)
-#
-        ## --- Paso 3: División por el continuo ---
-        #continuum_divided = torch.zeros_like(model_spectra)
-        #continuum_divided[mask] = model_spectra[mask] / spline_values[mask]
-        ## Restarle -1 
-        #
-        #continuum_divided = continuum_divided - 1.0
-#
-        #n_apod = max(1, int(n_wave * apod_fraction))
-        #apod_window = torch.ones(n_wave, device=device)
-#
-        #x = torch.linspace(0, np.pi / 2, n_apod, device=device)
-        #
-#
-        ## Eliminar la renormalizacion del último paso
-#
-#
-        ## --- Paso 5: Normalización final (opcional, comentado) ---
-        #max_spectrum = torch.max(apodized_spectra, dim=1, keepdim=True)[0]
-        ##max_spectrum = torch.quantile(apodized_spectra, 0.95, dim=1, keepdim=True)[0]
-        #final_spectra = torch.zeros_like(model_spectra)
-        ##final_spectra[mask] = (apodized_spectra / torch.clamp(max_spectrum, min=1e-8))[mask]
-        #final_spectra[mask] = apodized_spectra[mask]
-        #final_spectra = torch.nan_to_num(final_spectra, nan=0.0, posinf=0.0, neginf=0.0)
-#
-        #if return_continuum:
-        #    #Esto porque Spline values no esta normalizado
-        #    max_continuum = torch.max(spline_values, dim=1, keepdim=True)[0]
-        #    continuum_norm = torch.zeros_like(spline_values)
-        #    continuum_norm[mask] = (spline_values / torch.clamp(max_continuum, min=1e-8))[mask]
-        #    continuum_norm = torch.nan_to_num(continuum_norm, nan=0.0, posinf=0.0, neginf=0.0)
-        #    #return final_spectra, continuum_norm, apodized_spectra, spline_values
-        #    return final_spectra, continuum_divided, apodized_spectra, spline_values, model_spectra
-        #else:
-        #    return final_spectra
 
 if __name__ == "__main__":
     
@@ -1810,7 +1866,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=initial_settings['batch_size'], collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 50
+    epochs = 200
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
@@ -1831,6 +1887,7 @@ if __name__ == "__main__":
         #name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
         name=f"BORRAR_CPU_TEST_{today}",
+        #name=f"diositoayudame_{today}",
         config={
             'epochs': epochs,
             'batch_size': initial_settings['batch_size'],

@@ -259,12 +259,12 @@ class MetricsCallback(Callback):
 
                     ax.axvline(initial_settings['lambda_min_mask'], color='black', ls=':')
                     ax.axvline(initial_settings['lambda_max_mask'], color='black', ls=':')
-                    trans_patch = ax.fill_between(wave_grid, trans, color='C2', alpha=0.2)
+                    #trans_patch = ax.fill_between(wave_grid, trans, color='C2', alpha=0.2)
                     ax.set_title(f'{oid[i]}')
                     if not legend_created:                                      
                         legend_handles.append((line_spectra[0], 'Model Spectra'))
                         legend_handles.append((line_original[0], 'Original'))
-                        legend_handles.append((trans_patch, 'Transmision'))
+                        #legend_handles.append((trans_patch, 'Transmision'))
                         legend_created = True
                     if i == 0:
                         ax.set_ylabel('Normalized Flux', fontsize=14)
