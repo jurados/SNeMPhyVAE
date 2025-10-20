@@ -1608,6 +1608,8 @@ class MPhy_VAE(L.LightningModule):
         #print('continue_divided shape:', continue_divided.shape)
         #continue_divided -= 1
         norm_spectra -= 1
+        
+        continue_divided = norm_spectra
 
         n_apod      = max(1, int(wave.shape[0] * apod_fraction))
         apod_window = torch.ones(wave.shape[0], device=device)
@@ -1616,7 +1618,7 @@ class MPhy_VAE(L.LightningModule):
         apod_window[-n_apod:] = torch.flip(torch.sin(x), dims=[0])**2
         
         #print('apod_window shape:', apod_window.shape)
-        apodized_spectra = norm_spectra * apod_window.unsqueeze(1)  # [B*T, n_wave]
+        apodized_spectra = continue_divided * apod_window.unsqueeze(1)  # [B*T, n_wave]
 
         plot_flag = False
         if plot_flag:
