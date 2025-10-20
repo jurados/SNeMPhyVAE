@@ -1019,12 +1019,23 @@ class MPhy_VAE(L.LightningModule):
         # sample from it.
         amplitude_mu, amplitude_logvar = self._compute_amplitude(obs_weight, model_flux,
                                                                  obs_flux)
+        #print('amplitude_mu', amplitude_mu.shape)
+        #print('amplitude_logvar', amplitude_logvar.shape)
+        
         amplitude = self._reparameterize(amplitude_mu, amplitude_logvar)
+
+        #print('amplitude', amplitude.shape)
+
+        #plt.plot(self.model_wave, model_spectra[0,:,150].detach().cpu().numpy(), label='Model spectrum before amplitude')
+        #plt.show()
 
         model_flux    = model_flux * amplitude[:, None]
         model_spectra = model_spectra * amplitude[:, None, None] #+ data['rainbow']
         #model_spectra = self._smooth_spectra(model_spectra)
         
+        #plt.plot(self.model_wave, model_spectra[0,:,150].detach().cpu().numpy(), label='Model after before amplitude')
+        #plt.show()
+
         model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization_new(model_spectra, self.model_wave, is_smoothed=False, return_all=True)
         #model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization_new(model_spectra, self.model_wave, is_smoothed=False, return_all=False)
         #model_spectra_continuum *= amplitude[:, None, None]
@@ -1561,11 +1572,10 @@ class MPhy_VAE(L.LightningModule):
             model_spectra = self._smooth_spectra(model_spectra, method='moving_average', window_size=200,  n_points=None)
         
         #rint('wave shape:',wave.shape)
-        denom = model_spectra.max(dim=1, keepdim=True)[0] - model_spectra.min(dim=1, keepdim=True)[0]
-        denom = torch.where(denom == 0, torch.ones_like(denom), denom)
-        norm_spectra = (model_spectra - model_spectra.min(dim=1, keepdim=True)[0]) / denom
-        norm_spectra = torch.nan_to_num(norm_spectra, nan=0.0, posinf=0.0, neginf=0.0)        
-        
+        num = model_spectra - model_spectra.min(dim=1, keepdim=True)[0]
+        den = model_spectra.max(dim=1, keepdim=True)[0] - model_spectra.min(dim=1, keepdim=True)[0]
+        den[den == 0] = 1e-5
+        norm_spectra = num / den
         
         #transpose_model_spectra = model_spectra.permute(0, 2, 1)  # [B, T, n_wave]
         #print('model_spectra shape:', model_spectra.shape)
@@ -1587,8 +1597,8 @@ class MPhy_VAE(L.LightningModule):
         spline_values = spline.evaluate(wave)  # [n_wave, B*T] 
         #print('spline_values shape:', spline_values.shape)     
 
+        spline_values[spline_values == 0] = 1e-5
         continue_divided = transpose_model_spectra / spline_values  # [B*T, n_wave] 
-        
         
         #print('continue_divided shape:', continue_divided.shape)
         continue_divided -= 1
@@ -1599,24 +1609,23 @@ class MPhy_VAE(L.LightningModule):
         apod_window[:n_apod] = torch.sin(x)**2
         apod_window[-n_apod:] = torch.flip(torch.sin(x), dims=[0])**2
         
-        
-        
-        
         #print('apod_window shape:', apod_window.shape)
         apodized_spectra = continue_divided * apod_window.unsqueeze(1)  # [B*T, n_wave]
 
-        #fig, ax = plt.subplots(3,1, figsize=(8,12))
-        #ax[0].plot(wave.cpu().numpy(), transpose_model_spectra[:,0].cpu().detach().numpy(), color='C0', label='Original Spectrum (example)')
-        #ax[0].plot(wave.cpu().numpy(), spline_values[:,0].cpu().detach().numpy(), color='C1', label='Cubic Spline Continuum (example)')
-        #ax[0].legend()
-        #ax[1].plot(wave.cpu().numpy(), continue_divided[:,0].cpu().detach().numpy(), color='C2', label='Continuum Divided Spectrum (example)')
-        ##ax[1].plot(wave.cpu().numpy(), continue_divided[:,0].cpu().detach().numpy(), color='C3', label='Continuum Divided Spectrum (example) - 1')
-        #ax[1].legend()
-        #ax[2].plot(wave.cpu().numpy(), apodized_spectra[:,0].cpu().detach().numpy(), color='C4', label='Apodized Spectrum (example)')
-        #ax[2].legend()
-        #ax[2].set_xlabel('Wavelength')
-        #plt.tight_layout()
-        #plt.show()
+        plot_flag = False
+        if plot_flag:
+            fig, ax = plt.subplots(3,1, figsize=(8,12))
+            ax[0].plot(wave.cpu().numpy(), transpose_model_spectra[:,0].cpu().detach().numpy(), color='C0', label='Original Spectrum (example)')
+            ax[0].plot(wave.cpu().numpy(), spline_values[:,0].cpu().detach().numpy(), color='C1', label='Cubic Spline Continuum (example)')
+            ax[0].legend()
+            ax[1].plot(wave.cpu().numpy(), continue_divided[:,0].cpu().detach().numpy(), color='C2', label='Continuum Divided Spectrum (example)')
+            #ax[1].plot(wave.cpu().numpy(), continue_divided[:,0].cpu().detach().numpy(), color='C3', label='Continuum Divided Spectrum (example) - 1')
+            ax[1].legend()
+            ax[2].plot(wave.cpu().numpy(), apodized_spectra[:,0].cpu().detach().numpy(), color='C4', label='Apodized Spectrum (example)')
+            ax[2].legend()
+            ax[2].set_xlabel('Wavelength')
+            plt.tight_layout()
+            plt.show()
 
         #print('apodized_spectra shape:', apodized_spectra.shape)
         
@@ -1866,7 +1875,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=initial_settings['batch_size'], collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 200
+    epochs = 150
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
@@ -1886,8 +1895,8 @@ if __name__ == "__main__":
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
         #name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
-        name=f"BORRAR_CPU_TEST_{today}",
-        #name=f"diositoayudame_{today}",
+        #name=f"BORRAR_CPU_TEST_{today}",
+        name=f"diositoayudame_{today}",
         config={
             'epochs': epochs,
             'batch_size': initial_settings['batch_size'],
