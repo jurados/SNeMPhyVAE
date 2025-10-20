@@ -31,14 +31,14 @@ initial_settings = {
     'spectrum_bins': 500,    # This value is to keep the velocity equal to 200 Km/s
     'band_oversampling': 51, # This must be odd.
     'max_redshift': 4.,
-    'penalty_spectra': 1e-3,
+    'penalty_spectra': 1e-2,
 
     # Model Settings
     'batch_size': 128,
     'learning_rate': 1e-4,
     'scheduler_factor': 0.5,
     'min_learning_rate': 1e-5,
-    'penalty': 1e-5,
+    'penalty': 1e-3,
     'latent_size': 3,
 
     # Encoding settings. The settings here are not the same
