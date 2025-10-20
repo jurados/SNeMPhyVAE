@@ -38,7 +38,7 @@ initial_settings = {
     'learning_rate': 1e-4,
     'scheduler_factor': 0.5,
     'min_learning_rate': 1e-5,
-    'penalty': 1e-5,
+    'penalty': 1e-7,
     'latent_size': 3,
 
     # Encoding settings. The settings here are not the same
