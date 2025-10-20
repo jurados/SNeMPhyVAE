@@ -1600,8 +1600,14 @@ class MPhy_VAE(L.LightningModule):
         spline_values[spline_values == 0] = 1e-5
         continue_divided = transpose_model_spectra / spline_values  # [B*T, n_wave] 
         
+        num = continue_divided - continue_divided.min(dim=1, keepdim=True)[0]
+        den = continue_divided.max(dim=1, keepdim=True)[0] - continue_divided.min(dim=1, keepdim=True)[0]
+        den[den == 0] = 1e-5
+        norm_spectra = num / den
+        
         #print('continue_divided shape:', continue_divided.shape)
-        continue_divided -= 1
+        #continue_divided -= 1
+        norm_spectra -= 1
 
         n_apod      = max(1, int(wave.shape[0] * apod_fraction))
         apod_window = torch.ones(wave.shape[0], device=device)
@@ -1610,7 +1616,7 @@ class MPhy_VAE(L.LightningModule):
         apod_window[-n_apod:] = torch.flip(torch.sin(x), dims=[0])**2
         
         #print('apod_window shape:', apod_window.shape)
-        apodized_spectra = continue_divided * apod_window.unsqueeze(1)  # [B*T, n_wave]
+        apodized_spectra = norm_spectra * apod_window.unsqueeze(1)  # [B*T, n_wave]
 
         plot_flag = False
         if plot_flag:
