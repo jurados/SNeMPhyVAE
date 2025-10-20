@@ -1600,16 +1600,16 @@ class MPhy_VAE(L.LightningModule):
         spline_values[spline_values == 0] = 1e-5
         continue_divided = transpose_model_spectra / spline_values  # [B*T, n_wave] 
         
-        #num = continue_divided - continue_divided.min(dim=1, keepdim=True)[0]
-        #den = continue_divided.max(dim=1, keepdim=True)[0] - continue_divided.min(dim=1, keepdim=True)[0]
-        #den[den == 0] = 1e-5
-        #norm_spectra = num / den
+        num = continue_divided - continue_divided.min(dim=0, keepdim=True)[0]
+        den = continue_divided.max(dim=0, keepdim=True)[0] - continue_divided.min(dim=0, keepdim=True)[0]
+        den[den == 0] = 1e-5
+        norm_spectra = num / den
         
         #print('continue_divided shape:', continue_divided.shape)
-        continue_divided -= 1
-        #norm_spectra -= 1
+        #continue_divided -= 1
+        norm_spectra -= 1
         
-        #continue_divided = norm_spectra
+        continue_divided = norm_spectra
 
         n_apod      = max(1, int(wave.shape[0] * apod_fraction))
         apod_window = torch.ones(wave.shape[0], device=device)
@@ -1872,8 +1872,14 @@ if __name__ == "__main__":
     ligthcurves['redshift'] = spectra.groupby('oid')['redshift'].first().reindex(ligthcurves['oid']).values
     ligthcurves['redshift'] = ligthcurves['redshift'].replace('nan', 0.)
     
+    print(len(ligthcurves.oid.unique()), 'lightcurves loaded')
+    print(len(spectra.oid.unique()), 'spectra loaded')
+    
     spectra = spectra[~spectra.oid.isin(BADSN)]
     ligthcurves = ligthcurves[~ligthcurves.oid.isin(BADSN)]
+    
+    print(len(ligthcurves.oid.unique()), 'lightcurves after removing bads')
+    print(len(spectra.oid.unique()), 'spectra after removing bads')
     
     train_oids, test_oids = train_test_split(list(ligthcurves.oid.unique()), test_size=0.2, random_state=42)
     train_dataset = CompleteDataset(
@@ -1888,7 +1894,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=initial_settings['batch_size'], collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 150
+    epochs = 1
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
