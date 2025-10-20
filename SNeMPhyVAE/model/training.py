@@ -1862,6 +1862,9 @@ if __name__ == "__main__":
     #test_loader   = DataLoader(test_dataset, batch_size=64, collate_fn=list, shuffle=False)
 
     # I am working just with SNIa for now
+    
+    BADSN = ['ZTF23aaqasrd', 'ZTF18abdfaqi', 'ZTF21aciqcge', 'ZTF21aaxuywf']
+    
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
     ligthcurves = pd.read_pickle(os.path.join(data_dir, 'preprocessed_lightcurves_snia.pkl'))
     spectra     = pd.read_pickle(os.path.join(data_dir, 'preprocessed_spectra_snia.pkl'))
@@ -1869,6 +1872,8 @@ if __name__ == "__main__":
     ligthcurves['redshift'] = spectra.groupby('oid')['redshift'].first().reindex(ligthcurves['oid']).values
     ligthcurves['redshift'] = ligthcurves['redshift'].replace('nan', 0.)
     
+    spectra = spectra[~spectra.oid.isin(BADSN)]
+    ligthcurves = ligthcurves[~ligthcurves.oid.isin(BADSN)]
     
     train_oids, test_oids = train_test_split(list(ligthcurves.oid.unique()), test_size=0.2, random_state=42)
     train_dataset = CompleteDataset(
@@ -1883,7 +1888,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=initial_settings['batch_size'], collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 200
+    epochs = 1
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
@@ -1903,8 +1908,8 @@ if __name__ == "__main__":
         #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
         #name=f"TEST_{today}",
         #name=f"TEST_{today}_presentContinuum_NLHPC",
-        #name=f"BORRAR_CPU_TEST_{today}",
-        name=f"diositoayudame_{today}",
+        name=f"BORRAR_CPU_TEST_{today}",
+        #name=f"diositoayudame_{today}",
         config={
             'epochs': epochs,
             'batch_size': initial_settings['batch_size'],
