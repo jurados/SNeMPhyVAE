@@ -1840,7 +1840,7 @@ if __name__ == "__main__":
             f"{today}_1erNorm_nbins={initial_settings['spectrum_bins']}_"
             f"LatentSize={initial_settings['latent_size']}_"
             f"PenSpectra_{initial_settings['penalty_spectra']}"
-            f"PenSmooth_{initial_settings['penalty']"}
+            f"PenSmooth_{initial_settings['penalty']}"
         ),
         #name=f"diositoayudame_{today}",
         config={
