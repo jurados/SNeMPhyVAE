@@ -1818,7 +1818,7 @@ if __name__ == "__main__":
     test_loader   = DataLoader(test_dataset, batch_size=initial_settings['batch_size'], collate_fn=list, shuffle=False)
 
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 1
+    epochs = 150
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
@@ -1835,10 +1835,13 @@ if __name__ == "__main__":
         #    #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
         #    f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
         #),
-        #name=f"{today}_nbis={initial_settings['spectrum_bins']}_lossSpectra",
-        #name=f"TEST_{today}",
-        #name=f"TEST_{today}_presentContinuum_NLHPC",
-        name=f"HOYBORRAR_CPU_TEST_{today}",
+        #name=f"HOYBORRAR_CPU_TEST_{today}",
+        name = (
+            f"{today}_1erNorm_nbins={initial_settings['spectrum_bins']}_"
+            f"LatentSize={initial_settings['latent_size']}_"
+            f"PenSpectra_{initial_settings['penalty_spectra']}"
+            f"PenSmooth_{initial_settings['penalty']"}
+        ),
         #name=f"diositoayudame_{today}",
         config={
             'epochs': epochs,

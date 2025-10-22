@@ -3,9 +3,9 @@
 #SBATCH -J training_MPhyVAENN
 #SBATCH -p mi210
 #SBATCH --gres=gpu:1
-#SBATCH -n 1
+#SBATCH --ntasks-per-node=2
 #SBATCH -c 4
-#SBATCH --mem-per-cpu=3000
+#SBATCH --mem-per-cpu=4000
 #SBATCH --mail-user=sjurado@das.uchile.cl
 #SBATCH --mail-type=ALL
 #SBATCH -o logs/training_%j.err.out
