@@ -1602,15 +1602,21 @@ class MPhy_VAE(L.LightningModule):
             model_spectra = self._smooth_spectra(model_spectra, method='moving_average')
         
         #rint('wave shape:',wave.shape)
-        num = model_spectra - model_spectra.min(dim=1, keepdim=True)[0]
-        den = model_spectra.max(dim=1, keepdim=True)[0] - model_spectra.min(dim=1, keepdim=True)[0]
-        den[den == 0] = 1e-5
-        norm_spectra = num / den
+        normal = False
+        if normal:
+            num = model_spectra - model_spectra.min(dim=1, keepdim=True)[0]
+            den = model_spectra.max(dim=1, keepdim=True)[0] - model_spectra.min(dim=1, keepdim=True)[0]
+            den[den == 0] = 1e-5
+            norm_spectra = num / den
+
+            transpose_model_spectra = norm_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
+        else:
+            transpose_model_spectra = model_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
         
         #transpose_model_spectra = model_spectra.permute(0, 2, 1)  # [B, T, n_wave]
         #print('model_spectra shape:', model_spectra.shape)
         #transpose_model_spectra = model_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
-        transpose_model_spectra = norm_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
+        #transpose_model_spectra = norm_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
         #print('transpose_model_spectra shape:', transpose_model_spectra.shape)
         #final_continuum = torch.zeros_like(transpose_model_spectra)
         #final_spline    = torch.zeros_like(transpose_model_spectra)
@@ -1837,7 +1843,7 @@ if __name__ == "__main__":
         #),
         #name=f"HOYBORRAR_CPU_TEST_{today}",
         name = (
-            f"{today}_1erNorm_nbins={initial_settings['spectrum_bins']}_"
+            f"{today}_NONorm_nbins={initial_settings['spectrum_bins']}_"
             f"LatentSize={initial_settings['latent_size']}_"
             f"PenSpectra_{initial_settings['penalty_spectra']}"
             f"PenSmooth_{initial_settings['penalty']}"
