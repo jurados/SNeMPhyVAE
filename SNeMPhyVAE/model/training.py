@@ -1664,14 +1664,13 @@ class MPhy_VAE(L.LightningModule):
             ax[2].set_xlabel('Wavelength')
             plt.tight_layout()
             #plt.show(block=False)
-            plt.show()
+            #plt.show()
             #plt.pause(1)
             #plt.close()
 
         #print('apodized_spectra shape:', apodized_spectra.shape)
         
-        #final_spectra   = apodized_spectra.reshape(n_wave, batch, time_window).permute(1, 0, 2)  # [B, n_wave, T]
-        final_spectra   = continue_divided.reshape(n_wave, batch, time_window).permute(1, 0, 2)  # [B, n_wave, T]
+        final_spectra   = apodized_spectra.reshape(n_wave, batch, time_window).permute(1, 0, 2)  # [B, n_wave, T]
         final_continuum = continue_divided.reshape(n_wave, batch, time_window).permute(1, 0, 2)
         final_apod      = apodized_spectra.reshape(n_wave, batch, time_window).permute(1, 0, 2)
         final_spline    = spline_values.reshape(n_wave, batch, time_window).permute(1, 0, 2)
