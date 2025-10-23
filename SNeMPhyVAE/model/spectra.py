@@ -381,7 +381,7 @@ class Spectra():
         wave_reduced = np.linspace(wave.min(), wave.max(), target_size)
         return wave_reduced
 
-    def slice_spectrum(self, spectrum, wave, method='moving_average', window_size=9, polyorder=2, target_size=None):
+    def slice_spectrum(self, spectrum, wave, method='moving_average', window_size=200, polyorder=2, target_size=None):
         """
         Smooth and reduce the size of a spectrum using interpolation or averaging.
 
@@ -454,22 +454,24 @@ if __name__ == "__main__":
     prespec = preprocessed_spectra[preprocessed_spectra.oid == oidx].iloc[0]
     #print(prespec)
 
-    #fig, axes = plt.subplots(3, 1, figsize=(10, 12),
-    #                         sharex=True, 
-    #                         #gridspec_kw={'hspace': 0.05}
-    #                         )
-    #axes[0].plot(prespec.wave, spec.flux_lambda , label='Original Flux', color='orange', alpha=0.5)
-    #axes[1].plot(prespec.wave, prespec.flux, label='Processed Flux', color='red', alpha=0.5)
-    #axes[1].plot(prespec.wave, prespec.flux_spline, label='Continuum Flux', color='green', alpha=0.5)
-    #axes[2].plot(prespec.wave_sliced, prespec.flux_sliced, label='PreProcess Flux', color='blue', alpha=0.5)
-    #
-    #for ax in axes:
-    #    ax.set_ylabel('Flux')
-    #    ax.legend(frameon=False)
-    #    
-    #fig.suptitle(f'Spectrum OID: {oidx}', fontsize=16)
-    #
-    #plt.show()
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12),
+                             sharex=True, 
+                             #gridspec_kw={'hspace': 0.05}
+                             )
+    axes[0].plot(prespec.wave, spec.flux_lambda , label='Original Flux', color='orange', alpha=0.5)
+    axes[1].plot(prespec.wave, prespec.flux, label='Processed Flux', color='red', alpha=0.5)
+    axes[1].plot(prespec.wave, prespec.flux_spline, label='Continuum Flux', color='green', alpha=0.5)
+    spidx = np.linspace(0, len(prespec.wave)-1, 13, dtype=int)
+    axes[1].scatter(prespec.wave[spidx], prespec.flux_spline[spidx], label='Spline Control Points', color='black')
+    axes[2].plot(prespec.wave_sliced, prespec.flux_sliced, label='PreProcess Flux', color='blue', alpha=0.5)
+    
+    for ax in axes:
+        ax.set_ylabel('Flux')
+        ax.legend(frameon=False)
+        
+    fig.suptitle(f'Spectrum OID: {oidx}', fontsize=16)
+    
+    plt.show()
     
     common_oids = set(preprocessed_spectra.oid).intersection(set(preprocessed_lightcurves.oid))
     spectra_final = preprocessed_spectra[preprocessed_spectra.oid.isin(common_oids)].copy()

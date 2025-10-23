@@ -1026,15 +1026,15 @@ class MPhy_VAE(L.LightningModule):
 
         #print('amplitude', amplitude.shape)
 
-        #plt.plot(self.model_wave, model_spectra[0,:,150].detach().cpu().numpy(), label='Model spectrum before amplitude')
-        #plt.show()
+        plt.plot(self.model_wave, model_spectra[0,:,150].detach().cpu().numpy(), label='Model spectrum before amplitude')
+        plt.show()
 
         model_flux    = model_flux * amplitude[:, None]
         model_spectra = model_spectra * amplitude[:, None, None] #+ data['rainbow']
         #model_spectra = self._smooth_spectra(model_spectra)
         
-        #plt.plot(self.model_wave, model_spectra[0,:,150].detach().cpu().numpy(), label='Model after before amplitude')
-        #plt.show()
+        plt.plot(self.model_wave, model_spectra[0,:,150].detach().cpu().numpy(), label='Model after before amplitude')
+        plt.show()
 
         model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=True)
         #model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=False)
@@ -1602,7 +1602,7 @@ class MPhy_VAE(L.LightningModule):
             new_model_spectra = num / den
 
         if not is_smoothed:
-            new_model_spectra = self._smooth_spectra(new_model_spectra, method='moving_average')
+            new_model_spectra = self._smooth_spectra(new_model_spectra, method='moving_average', velocity=10000)
                  
         transpose_model_spectra = new_model_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
         
@@ -1649,11 +1649,13 @@ class MPhy_VAE(L.LightningModule):
         #print('apod_window shape:', apod_window.shape)
         apodized_spectra = continue_divided * apod_window.unsqueeze(1)  # [B*T, n_wave]
 
-        plot_flag = False
+        plot_flag = True
         if plot_flag:
             fig, ax = plt.subplots(3,1, figsize=(8,12))
-            ax[0].plot(wave.cpu().numpy(), new_model_spectra[0,:,0].cpu().detach().numpy(), color='C3', label='Original Spectrum before smoothing (example)', alpha=0.5)
-            ax[0].plot(wave.cpu().numpy(), transpose_model_spectra[:,0].cpu().detach().numpy(), color='C0', label='Original Spectrum (example)')
+            ax[0].plot(wave.cpu().numpy(), model_spectra[0,:,0].cpu().detach().numpy(), color='C2', label='Original spectra', alpha=0.5)
+            #ax[0].plot(wave.cpu().numpy(), new_model_spectra[0,:,0].cpu().detach().numpy(), color='C3', label='Original Spectrum before smoothing (example)', alpha=0.5)
+            ax[0].scatter(wave_npoints.cpu().numpy(), spectra_npoints[:,0].cpu().detach().numpy(), color='C4', label='Spline Control Points (example)')
+            ax[0].plot(wave.cpu().numpy(), transpose_model_spectra[:,0].cpu().detach().numpy(), color='C0', label='Original Spectrum after smoothing (example)')
             ax[0].plot(wave.cpu().numpy(), spline_values[:,0].cpu().detach().numpy(), color='C1', label='Cubic Spline Continuum (example)')
             ax[0].legend()
             ax[1].plot(wave.cpu().numpy(), continue_divided[:,0].cpu().detach().numpy(), color='C2', label='Continuum Divided Spectrum (example)')
