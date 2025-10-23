@@ -1592,26 +1592,19 @@ class MPhy_VAE(L.LightningModule):
         batch, n_wave, time_window = model_spectra.shape
         wave = torch.FloatTensor(wave).to(device)
         
-        old_model_spectra = model_spectra.clone()
-        old_num = old_model_spectra - old_model_spectra.min(dim=1, keepdim=True)[0]
-        old_den = old_model_spectra.max(dim=1, keepdim=True)[0] - old_model_spectra.min(dim=1, keepdim=True)[0]
-        old_den[old_den == 0] = 1e-5
-        old_model_spectra = old_num / old_den
+        #new_model_spectra = model_spectra.clone()
         
-        if not is_smoothed:
-            model_spectra = self._smooth_spectra(model_spectra, method='moving_average')
-        
-        #rint('wave shape:',wave.shape)
         normal = False
         if normal:
             num = model_spectra - model_spectra.min(dim=1, keepdim=True)[0]
             den = model_spectra.max(dim=1, keepdim=True)[0] - model_spectra.min(dim=1, keepdim=True)[0]
             den[den == 0] = 1e-5
-            norm_spectra = num / den
+            new_model_spectra = num / den
 
-            transpose_model_spectra = norm_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
-        else:
-            transpose_model_spectra = model_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
+        if not is_smoothed:
+            new_model_spectra = self._smooth_spectra(new_model_spectra, method='moving_average')
+                 
+        transpose_model_spectra = new_model_spectra.permute(1, 0, 2).reshape(n_wave, batch * time_window)  # [B, T, n_wave]
         
         #transpose_model_spectra = model_spectra.permute(0, 2, 1)  # [B, T, n_wave]
         #print('model_spectra shape:', model_spectra.shape)
@@ -1659,7 +1652,7 @@ class MPhy_VAE(L.LightningModule):
         plot_flag = False
         if plot_flag:
             fig, ax = plt.subplots(3,1, figsize=(8,12))
-            ax[0].plot(wave.cpu().numpy(), old_model_spectra[0,:,0].cpu().detach().numpy(), color='C3', label='Original Spectrum before smoothing (example)', alpha=0.5)
+            ax[0].plot(wave.cpu().numpy(), new_model_spectra[0,:,0].cpu().detach().numpy(), color='C3', label='Original Spectrum before smoothing (example)', alpha=0.5)
             ax[0].plot(wave.cpu().numpy(), transpose_model_spectra[:,0].cpu().detach().numpy(), color='C0', label='Original Spectrum (example)')
             ax[0].plot(wave.cpu().numpy(), spline_values[:,0].cpu().detach().numpy(), color='C1', label='Cubic Spline Continuum (example)')
             ax[0].legend()
@@ -1687,8 +1680,10 @@ class MPhy_VAE(L.LightningModule):
         #print("Ending AstroDASH normalization...")
         
         if return_all:
-            #return final_spectra, final_continuum, final_apod, final_spline, model_spectra
-            return final_spectra, final_continuum, final_apod, final_spline, norm_spectra
+            if normal:
+                return final_spectra, final_continuum, final_apod, final_spline, new_model_spectra
+            else:
+                return final_spectra, final_continuum, final_apod, final_spline, model_spectra
         else:
             return final_spectra
 
@@ -1793,7 +1788,8 @@ if __name__ == "__main__":
 
     # I am working just with SNIa for now
     
-    BADSN = ['ZTF23aaqasrd', 'ZTF18abdfaqi', 'ZTF21aciqcge', 'ZTF21aaxuywf']
+    #BADSN = ['ZTF23aaqasrd', 'ZTF18abdfaqi', 'ZTF21aciqcge', 'ZTF21aaxuywf']
+    BADSN = []
     
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
     ligthcurves = pd.read_pickle(os.path.join(data_dir, 'preprocessed_lightcurves_snia.pkl'))
