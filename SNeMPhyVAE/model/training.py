@@ -1592,7 +1592,7 @@ class MPhy_VAE(L.LightningModule):
         batch, n_wave, time_window = model_spectra.shape
         wave = torch.FloatTensor(wave).to(device)
         
-        #new_model_spectra = model_spectra.clone()
+        new_model_spectra = model_spectra.clone()
         
         normal = False
         if normal:
