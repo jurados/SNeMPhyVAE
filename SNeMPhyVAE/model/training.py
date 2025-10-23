@@ -48,13 +48,7 @@ from update import update_settings
 #print("After initial settings:")
 #print(initial_settings['spectrum_bins'])
 
-wandb_key = open('./WANDB_API.key', 'r').read()
-wandb.login(key=wandb_key)
 
-#from metrics_callback import MetricsCallback
-
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print('Trabajando con: ', device)
 
 class CompleteDataset:
     def __init__(self, lightcurves, spectra):#0 rainbow, photovels):
@@ -1026,15 +1020,15 @@ class MPhy_VAE(L.LightningModule):
 
         #print('amplitude', amplitude.shape)
 
-        plt.plot(self.model_wave, model_spectra[0,:,150].detach().cpu().numpy(), label='Model spectrum before amplitude')
-        plt.show()
+        #plt.plot(self.model_wave, model_spectra[0,:,150].detach().cpu().numpy(), label='Model spectrum before amplitude')
+        #plt.show()
 
         model_flux    = model_flux * amplitude[:, None]
         model_spectra = model_spectra * amplitude[:, None, None] #+ data['rainbow']
         #model_spectra = self._smooth_spectra(model_spectra)
         
-        plt.plot(self.model_wave, model_spectra[0,:,150].detach().cpu().numpy(), label='Model after before amplitude')
-        plt.show()
+        #plt.plot(self.model_wave, model_spectra[0,:,150].detach().cpu().numpy(), label='Model after before amplitude')
+        #plt.show()
 
         model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=True)
         #model_spectra, model_spectra_continuum, apod_spectra, spline_spectra, initial_spectra = self._astrodash_normalization(model_spectra, self.model_wave, is_smoothed=False, return_all=False)
@@ -1666,9 +1660,9 @@ class MPhy_VAE(L.LightningModule):
             ax[2].set_xlabel('Wavelength')
             plt.tight_layout()
             #plt.show(block=False)
-            #plt.show()
-            #plt.pause(1)
-            #plt.close()
+            plt.show()
+            plt.pause(1)
+            plt.close()
 
         #print('apodized_spectra shape:', apodized_spectra.shape)
         
@@ -1820,41 +1814,57 @@ if __name__ == "__main__":
     train_loader  = DataLoader(train_dataset, batch_size=initial_settings['batch_size'], collate_fn=list, shuffle=True)
     test_loader   = DataLoader(test_dataset, batch_size=initial_settings['batch_size'], collate_fn=list, shuffle=False)
 
+
+    TEST_MODE = True
+
+    wandb_key = open('./WANDB_API.key', 'r').read()
+    wandb.login(key=wandb_key)
+
+    #from metrics_callback import MetricsCallback
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print('Trabajando con: ', device)
+
     today = pd.Timestamp.today(tz='America/Santiago').strftime('%Y%m%d_%H%M')
-    epochs = 150
+    epochs = 10
     model = MPhy_VAE(
         batch_size=initial_settings['batch_size'],
         device=device,
         bands=initial_settings['bands']
         )
-    wandb_logger = WandbLogger(
-        entity='fforster-uchile',
-        project='SupernovaeMultimodalVAE',
-        tags = ["Train"],
-        job_type='train',
-        #name = (
-        #    f"{today}_MPhyVAE_nbins={initial_settings['spectrum_bins']}_"
-        #    f"LatentSize={initial_settings['latent_size']}_"
-        #    #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
-        #    f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
-        #),
-        #name=f"HOYBORRAR_CPU_TEST_{today}",
-        name = (
-            f"{today}_NONorm_nbins={initial_settings['spectrum_bins']}_"
-            f"LatentSize={initial_settings['latent_size']}_"
-            f"PenSpectra_{initial_settings['penalty_spectra']}"
-            f"PenSmooth_{initial_settings['penalty']}"
-        ),
-        #name=f"diositoayudame_{today}",
-        config={
-            'epochs': epochs,
-            'batch_size': initial_settings['batch_size'],
-            'spectrum_bins': initial_settings['spectrum_bins'],
-            'latent_size': initial_settings['latent_size'],
-            'loss_spectra': 'NOnormalized',
-            'learning_rate': initial_settings['learning_rate'],
-            'scheduler_factor': initial_settings['scheduler_factor'],
-        })
+    
+    if TEST_MODE:
+        wandb_logger = None
+        print('TEST MODE: No wandb logging')
+    else:
+        wandb_logger = WandbLogger(
+            entity='fforster-uchile',
+            project='SupernovaeMultimodalVAE',
+            tags = ["Train"],
+            job_type='train',
+            #name = (
+            #    f"{today}_MPhyVAE_nbins={initial_settings['spectrum_bins']}_"
+            #    f"LatentSize={initial_settings['latent_size']}_"
+            #    #f"LossSpectra_WeightNOnormalized_{initial_settings['penalty_spectra']}"
+            #    f"LossSpectra_WeightNormalized_{initial_settings['penalty_spectra']}"
+            #),
+            #name=f"HOYBORRAR_CPU_TEST_{today}",
+            name = (
+                f"{today}_NONorm_nbins={initial_settings['spectrum_bins']}_"
+                f"LatentSize={initial_settings['latent_size']}_"
+                f"PenSpectra_{initial_settings['penalty_spectra']}"
+                f"PenSmooth_{initial_settings['penalty']}"
+            ),
+            #name=f"diositoayudame_{today}",
+            config={
+                'epochs': epochs,
+                'batch_size': initial_settings['batch_size'],
+                'spectrum_bins': initial_settings['spectrum_bins'],
+                'latent_size': initial_settings['latent_size'],
+                'loss_spectra': 'NOnormalized',
+                'learning_rate': initial_settings['learning_rate'],
+                'scheduler_factor': initial_settings['scheduler_factor'],
+            })
     #model = model.to(device)
     #timer = Timer()
     #metric = 
@@ -1874,10 +1884,6 @@ if __name__ == "__main__":
         train_dataloaders = train_loader,
         val_dataloaders = test_loader,
         )
-
-    #train_loss = model.train_loss_epoch
-    #val_loss   = model.val_loss_epoch
-    #results    = model.latest_results
 
     print('='*20)
     print('END TRAINING')

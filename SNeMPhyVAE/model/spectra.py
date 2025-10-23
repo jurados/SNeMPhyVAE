@@ -248,7 +248,7 @@ class Spectra():
         spectra_dict['flux_apodized'][mask] = apod_flux * window
         return spectra_dict['flux_apodized']
 
-    def preprocess_spectrum(self, spectra, slice_spectrum=False):
+    def preprocess_spectrum(self, spectra, smooth_spectrum=False):
         """
         Process a spectra set and add columns with the processed information.
 
@@ -256,7 +256,7 @@ class Spectra():
         -----------
         spectra : '~pd.DataFrame'
             DataFrame containing spectra records or a single spectrum as a pd.Series.
-        slice_spectrum : bool
+        smooth_spectrum : bool
             If True, the final spectrum will be sliced to a target size using smoothing and 
             interpolation.
 
@@ -310,7 +310,7 @@ class Spectra():
             spectra_dict['final_spectrum']  = spec_flux
 
             #print(type(spec_flux))
-            #final_spectrum[idx]  = self.slice_spectrum(spec_flux, target_size=self.initial_settings['spectrum_bins'])
+            #final_spectrum[idx]  = self.smooth_spectrum(spec_flux, target_size=self.initial_settings['spectrum_bins'])
 
             # Crear un diccionario con los resultados; se usa la grilla completa
             results.append({
@@ -332,10 +332,10 @@ class Spectra():
 
         result_df = pd.DataFrame(results)
 
-        if slice_spectrum:
+        if smooth_spectrum:
             result_df['wave_sliced'] = result_df['wave'].apply(lambda x: self.slice_wavelength(x))
             result_df['flux_sliced'] = result_df.apply(
-            lambda row: self.slice_spectrum(
+            lambda row: self.smooth_spectrum(
             row['final_spectrum'], 
             row['wave'], 
             method='savgol', 
@@ -381,7 +381,7 @@ class Spectra():
         wave_reduced = np.linspace(wave.min(), wave.max(), target_size)
         return wave_reduced
 
-    def slice_spectrum(self, spectrum, wave, method='moving_average', window_size=200, polyorder=2, target_size=None):
+    def smooth_spectrum(self, spectrum, wave, method='moving_average', velocity=10000, polyorder=2, target_size=None):
         """
         Smooth and reduce the size of a spectrum using interpolation or averaging.
 
@@ -409,10 +409,13 @@ class Spectra():
         if target_size is None: 
             target_size = self.initial_settings['spectrum_bins']
 
-        # Ensure window_size is odd
-        window_size = max(3, min(window_size, len(spectrum)-1))
-        if window_size % 2 == 0:
-            window_size += 1 # Make it odd
+        CSPEED = 3e5  # Speed of light in km/s
+        delta_lambda = velocity / CSPEED * wave[len(wave)//2]  # Approximate delta_lambda for the given velocity
+        average_delta_lambda = np.median(np.diff(wave))
+        
+        window_size = int(delta_lambda // average_delta_lambda)
+        window_size = max(3, int(min(window_size, len(spectrum)-1)))
+        window_size = window_size if window_size % 2 != 0 else window_size + 1
 
         # Apply smoothing
         if method == 'savgol':
@@ -444,7 +447,7 @@ if __name__ == "__main__":
     spectra = spectra_processor.obtain_data()
     print(f"Total spectra: {len(spectra)}")
 
-    preprocessed_spectra = spectra_processor.preprocess_spectrum(spectra, slice_spectrum=True)
+    preprocessed_spectra = spectra_processor.preprocess_spectrum(spectra, smooth_spectrum=True)
     #print(preprocessed_spectra.head())
     
     oidx_list = preprocessed_spectra.oid.unique()
